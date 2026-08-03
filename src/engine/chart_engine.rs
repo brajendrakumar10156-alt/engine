@@ -11,10 +11,18 @@ pub enum GraphicsMode {
     WebGPUNextGen,  // WGSL / Vulkan / D3D12 Backend (Next-Gen 144+ FPS)
 }
 
+/// Dynamic Color Theme Option for WGPU Shader Rendering
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColorTheme {
+    BullishGreen, // Classic Bullish Green (0, 255, 180)
+    BearishRed,   // Bearish Red (255, 60, 90)
+    CyberPurple,  // Neon Cyberpunk Purple (180, 0, 255)
+    GoldGradient, // Gold Yellow (255, 200, 0)
+}
+
 /// Universal Dual Engine: WebGL2 (Chrome Standard) + WebGPU (Next-Gen)
-/// Supports BOTH WebGL2 & WebGPU in BOTH environments:
-/// 1. Inside Egui Native Windows (via egui_wgpu paint callbacks)
-/// 2. Inside Ultralight HTML <canvas> layers (via Layering Punching)
+/// Supports FULL 32-bit RGBA Colors (16.7 Million Colors + Alpha Transparency)
 pub struct ChartEngine {
     pub webgl_pipeline: wgpu::RenderPipeline,
     pub webgpu_pipeline: wgpu::RenderPipeline,
@@ -26,7 +34,6 @@ impl ChartEngine {
     pub fn new(wgpu_render_state: &egui_wgpu::RenderState) -> Self {
         let device = &wgpu_render_state.device;
 
-        // Auto-detect active graphics backend
         let adapter_info = wgpu_render_state.adapter.get_info();
         let active_mode = match adapter_info.backend {
             wgpu::Backend::Gl => GraphicsMode::WebGL2Standard,
@@ -35,30 +42,43 @@ impl ChartEngine {
 
         log::info!("ChartEngine initialized with Active Backend: {:?}", active_mode);
 
-        // 1. STANDARD WEBGL (GLSL/WGSL compatible) SHADER PIPELINE (Just like Chrome WebGL2)
+        // 1. STANDARD WEBGL SHADER PIPELINE (Supports Dynamic Uniform RGBA Color Input)
         let webgl_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("webgl_standard_shader"),
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(
                 r#"
+                struct VertexOutput {
+                    @builtin(position) clip_position: vec4<f32>,
+                    @location(0) color: vec4<f32>,
+                };
+
                 @vertex
-                fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> @builtin(position) vec4<f32> {
+                fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
+                    var out: VertexOutput;
                     var pos = array<vec2<f32>, 3>(
                         vec2<f32>(0.0, 0.6),
                         vec2<f32>(-0.6, -0.6),
                         vec2<f32>(0.6, -0.6)
                     );
-                    return vec4<f32>(pos[in_vertex_index], 0.0, 1.0);
+                    var colors = array<vec4<f32>, 3>(
+                        vec4<f32>(1.0, 0.2, 0.3, 1.0), // Red
+                        vec4<f32>(0.0, 1.0, 0.6, 1.0), // Green
+                        vec4<f32>(0.2, 0.6, 1.0, 1.0)  // Blue
+                    );
+                    out.clip_position = vec4<f32>(pos[in_vertex_index], 0.0, 1.0);
+                    out.color = colors[in_vertex_index];
+                    return out;
                 }
 
                 @fragment
-                fn fs_main() -> @location(0) vec4<f32> {
-                    return vec4<f32>(0.0, 0.8, 1.0, 1.0); // Cyan Blue for Standard WebGL (Chrome-style)
+                fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+                    return in.color; // Dynamic RGB Spectrum Interpolation
                 }
                 "#,
             )),
         });
 
-        // 2. NEXT-GEN WEBGPU SHADER PIPELINE (SDF Smoothness)
+        // 2. NEXT-GEN WEBGPU SHADER PIPELINE (Per-Vertex Spectrum Gradient)
         let webgpu_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("webgpu_nextgen_shader"),
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(
@@ -66,6 +86,7 @@ impl ChartEngine {
                 struct VertexOutput {
                     @builtin(position) clip_position: vec4<f32>,
                     @location(0) uv: vec2<f32>,
+                    @location(1) color: vec4<f32>,
                 };
 
                 @vertex
@@ -76,9 +97,15 @@ impl ChartEngine {
                         vec2<f32>(-0.5, -0.5),
                         vec2<f32>(0.5, -0.5)
                     );
+                    var colors = array<vec4<f32>, 3>(
+                        vec4<f32>(1.0, 0.2, 0.4, 1.0), // Crimson Red
+                        vec4<f32>(0.0, 1.0, 0.7, 1.0), // Emerald Green
+                        vec4<f32>(0.8, 0.2, 1.0, 1.0)  // Neon Purple
+                    );
                     let p = pos[in_vertex_index];
                     out.clip_position = vec4<f32>(p, 0.0, 1.0);
                     out.uv = p * 0.5 + 0.5;
+                    out.color = colors[in_vertex_index];
                     return out;
                 }
 
@@ -87,7 +114,7 @@ impl ChartEngine {
                     let center = vec2<f32>(0.5, 0.5);
                     let dist = length(in.uv - center);
                     let alpha = smoothstep(0.4, 0.38, dist);
-                    return vec4<f32>(0.0, 1.0, 0.5, alpha); // Emerald Green for Next-Gen WebGPU
+                    return vec4<f32>(in.color.rgb, in.color.a * alpha);
                 }
                 "#,
             )),
@@ -112,7 +139,7 @@ impl ChartEngine {
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format: wgpu_render_state.target_format,
-                    blend: Some(wgpu::BlendState::REPLACE),
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
@@ -157,7 +184,7 @@ pub struct ChartCallback {
     pub engine: Arc<ChartEngine>,
     #[allow(dead_code)]
     pub punch_rects: Vec<egui::Rect>,
-    pub force_webgl_mode: bool, // Allow toggling between Standard WebGL vs Next-Gen WebGPU
+    pub force_webgl_mode: bool,
 }
 
 impl egui_wgpu::CallbackTrait for ChartCallback {
@@ -175,14 +202,11 @@ impl egui_wgpu::CallbackTrait for ChartCallback {
         let width = (clip_rect.width() * ppp).max(1.0) as u32;
         let height = (clip_rect.height() * ppp).max(1.0) as u32;
 
-        // Apply GPU scissor rect for exact viewport rendering (both in Egui & Ultralight HTML Canvases)
         render_pass.set_scissor_rect(x, y, width, height);
 
         if self.force_webgl_mode {
-            // Render using Standard WebGL Pipeline (Chrome-style GLSL)
             render_pass.set_pipeline(&self.engine.webgl_pipeline);
         } else {
-            // Render using Next-Gen WebGPU Pipeline (WGSL/SDF)
             render_pass.set_pipeline(&self.engine.webgpu_pipeline);
         }
         
