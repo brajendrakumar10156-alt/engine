@@ -23,7 +23,7 @@ fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1280.0, 720.0])
-            .with_title("Smart Brain Engine — Dual WebGPU (Egui + Ultralight) Hybrid OS"),
+            .with_title("Smart Brain Engine — Dual WebGL & WebGPU Hybrid OS"),
         ..Default::default()
     };
 
@@ -47,6 +47,7 @@ struct SmartBrainApp {
     #[allow(dead_code)]
     qt_engine: QtDataEngine,
     show_dynamic_popup: bool,
+    use_webgl_mode: bool, // Toggle between Standard WebGL vs Next-Gen WebGPU
     export_status_msg: String,
 }
 
@@ -66,6 +67,7 @@ impl SmartBrainApp {
             event_router: EventRouter::new(),
             qt_engine: QtDataEngine::new(),
             show_dynamic_popup: false,
+            use_webgl_mode: false,
             export_status_msg: "Ready".to_string(),
         }
     }
@@ -114,6 +116,17 @@ impl eframe::App for SmartBrainApp {
                     }
 
                     ui.separator();
+                    ui.heading("Graphics Pipeline Mode:");
+                    ui.horizontal(|ui| {
+                        if ui.selectable_label(!self.use_webgl_mode, "WebGPU (Next-Gen)").clicked() {
+                            self.use_webgl_mode = false;
+                        }
+                        if ui.selectable_label(self.use_webgl_mode, "WebGL2 (Chrome Style)").clicked() {
+                            self.use_webgl_mode = true;
+                        }
+                    });
+
+                    ui.separator();
                     ui.heading("Phase E: HFT & Exports");
                     
                     if ui.button("Run Polars HFT 1M Candle Math").clicked() {
@@ -152,14 +165,15 @@ impl eframe::App for SmartBrainApp {
                     ui.checkbox(&mut self.cursor_engine.enable_coordinate_crosshair, "Enable Coordinate Graph Crosshair");
 
                     ui.separator();
-                    ui.label("Dual WebGPU Support:");
-                    ui.label("✔ WebGPU inside Egui (Rust)");
-                    ui.label("✔ WebGPU inside Ultralight Punch");
-                    ui.label("✔ Universal Normal OS Cursor Active");
+                    ui.label("Dual Graphics Pipeline Support:");
+                    ui.label("✔ WebGL2 Chrome Standard Mode");
+                    ui.label("✔ WebGPU Next-Gen Mode");
+                    ui.label("✔ WebGL/WebGPU inside Egui");
+                    ui.label("✔ WebGL/WebGPU inside Ultralight Punch");
                 });
         }
 
-        // --- RENDER REGION 2: WEBGPU NATIVE CANVAS (PUNCHED LAYER VIA SCISSOR RECT) ---
+        // --- RENDER REGION 2: NATIVE CANVAS (PUNCHED LAYER VIA SCISSOR RECT) ---
         let mut is_over_coordinate_graph = false;
         for (i, wgpu_rect) in layout.wgpu_rects.iter().enumerate() {
             if let Some(pos) = ctx.pointer_latest_pos() {
@@ -180,6 +194,7 @@ impl eframe::App for SmartBrainApp {
                         engine::chart_engine::ChartCallback {
                             engine: self.chart_engine.clone(),
                             punch_rects: layout.html_punch_rects.clone(),
+                            force_webgl_mode: self.use_webgl_mode,
                         },
                     );
                     ui.painter().add(cb);
@@ -194,7 +209,7 @@ impl eframe::App for SmartBrainApp {
                 .show(ctx, |ui| {
                     ui.heading("Ultralight HTML DOM");
                     ui.label("Dynamic HTML Layering active!");
-                    ui.label("Background WebGPU chart is stencil/scissor punched behind this box.");
+                    ui.label("Background graphics chart is stencil/scissor punched behind this box.");
                 });
         }
 
