@@ -9,6 +9,7 @@ use ui::layout_engine::LayoutEngine;
 use ui::event_router::EventRouter;
 use engine::chart_engine::ChartEngine;
 use engine::ultralight_engine::{UltralightEngine, DirtyRect};
+use engine::cursor_engine::CursorEngine;
 use engine::qt_engine::QtDataEngine;
 use std::sync::Arc;
 
@@ -36,6 +37,7 @@ struct SmartBrainApp {
     layout_engine: LayoutEngine,
     chart_engine: Arc<ChartEngine>,
     ultralight_engine: UltralightEngine,
+    cursor_engine: CursorEngine,
     event_router: EventRouter,
     #[allow(dead_code)]
     qt_engine: QtDataEngine,
@@ -53,6 +55,7 @@ impl SmartBrainApp {
             layout_engine: LayoutEngine::new(),
             chart_engine: Arc::new(ChartEngine::new(wgpu_render_state)),
             ultralight_engine,
+            cursor_engine: CursorEngine::new(true), // GPU Accelerated Cursor Engine
             event_router: EventRouter::new(),
             qt_engine: QtDataEngine::new(),
             show_dynamic_popup: false,
@@ -67,8 +70,9 @@ impl eframe::App for SmartBrainApp {
         // Render Ultralight surface & clear expired dirty rects
         self.ultralight_engine.render_html_surface();
 
-        // Route mouse events using EventRouter
+        // Route mouse events & update custom cursor position
         if let Some(pointer_pos) = ctx.pointer_latest_pos() {
+            self.cursor_engine.update_position(pointer_pos);
             self.event_router.route_mouse_event(pointer_pos, &self.layout_engine.current_layout.html_punch_rects);
         }
         
@@ -104,7 +108,7 @@ impl eframe::App for SmartBrainApp {
                     ui.label("Dual WebGPU Support:");
                     ui.label("✔ WebGPU inside Egui (Rust)");
                     ui.label("✔ WebGPU inside Ultralight Punch");
-                    ui.label("✔ Scissor GPU Punching Active");
+                    ui.label("✔ Unified Custom GPU/CPU Cursor Active");
                 });
         }
 
@@ -139,5 +143,8 @@ impl eframe::App for SmartBrainApp {
                     ui.label("Background WebGPU chart is stencil/scissor punched behind this box.");
                 });
         }
+
+        // --- RENDER UNIFIED CUSTOM GPU/CPU CURSOR ACROSS ALL LAYERS ---
+        self.cursor_engine.render_cursor(ctx);
     }
 }
