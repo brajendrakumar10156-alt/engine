@@ -10,8 +10,8 @@ pub struct LayoutRects {
     pub html_punch_rects: Vec<egui::Rect>,
 }
 
-/// Adaptive Dynamic Layout Engine
-/// Automatically integrates CodeInspector AST scan results and calculates Layering Punching zones.
+/// Adaptive Dynamic Layout Engine (Test No. 3 Blank Container)
+/// Calculates Pure Code-Driven Layering Punching zones without hardcoded predefined pixel offsets.
 pub struct LayoutEngine {
     pub current_layout: LayoutRects,
     pub current_plan: Option<LayerAllocationPlan>,
@@ -29,7 +29,7 @@ impl LayoutEngine {
         }
     }
 
-    /// Performs Zero-Config Code Inspection on a project path and calculates adaptive layout layers
+    /// Performs Zero-Config Code Inspection and calculates pure code-driven layout layers
     pub fn calculate_adaptive_tiling<P: AsRef<Path>>(
         &mut self,
         project_dir: P,
@@ -43,7 +43,7 @@ impl LayoutEngine {
         // 1. Run Smart Code Inspection on project bundle
         let plan = CodeInspector::inspect_project(project_dir, screen_size);
 
-        // 2. Allocate Layers dynamically based on Code Inspection Results
+        // 2. Allocate Layers dynamically based on Code Inspection Results (Zero Hardcoding)
         for region in &plan.regions {
             match region.tech {
                 LayerTechnology::WebGPUNative | LayerTechnology::WebGL2Fallback | LayerTechnology::Canvas2DFast => {
@@ -58,16 +58,11 @@ impl LayoutEngine {
             }
         }
 
-        // 3. Fallback WebGPU Canvas if undetected
+        // 3. Fallback WebGPU Canvas fitting full viewport if undetected
         if self.current_layout.wgpu_rects.is_empty() {
-            let chart_x = 52.0;
-            let chart_y = 42.0;
-            let chart_w = (screen_size.x - 108.0).max(100.0);
-            let chart_h = (screen_size.y - 78.0).max(100.0);
-
             self.current_layout.wgpu_rects.push(egui::Rect::from_min_size(
-                egui::pos2(chart_x, chart_y),
-                egui::vec2(chart_w, chart_h),
+                egui::pos2(0.0, 0.0),
+                screen_size,
             ));
         }
 

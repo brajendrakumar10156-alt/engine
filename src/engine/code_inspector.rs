@@ -43,7 +43,7 @@ impl CodeInspector {
         let index_html_path = dir.join("index.html");
         let assets_dir = dir.join("assets");
 
-        log::info!("CodeInspector: Auto-inspecting code signatures in {:?}...", dir);
+        log::info!("CodeInspector (Test No. 3 Blank Container): Auto-inspecting code signatures in {:?}...", dir);
 
         let mut has_webgpu_canvas = false;
         let mut has_webgl_canvas = false;
@@ -80,22 +80,18 @@ impl CodeInspector {
                                 || js_code.contains("createShaderModule")
                             {
                                 has_webgpu_canvas = true;
-                                log::info!("CodeInspector: Detected Native WebGPU Signature in {:?}", path.file_name());
                             }
 
                             if js_code.contains("webgl2") || js_code.contains("getContext(\"webgl2\")") || js_code.contains("webgl") {
                                 has_webgl_canvas = true;
-                                log::info!("CodeInspector: Detected Native WebGL2 Signature in {:?}", path.file_name());
                             }
 
                             if js_code.contains("getContext(\"2d\")") || js_code.contains("2d") || js_code.contains("CanvasRenderingContext2D") {
                                 has_canvas_2d = true;
-                                log::info!("CodeInspector: Detected Native Canvas 2D Signature in {:?}", path.file_name());
                             }
 
                             if js_code.contains("egui") || js_code.contains("eframe") || js_code.contains("rust_egui") {
                                 has_egui_rust = true;
-                                log::info!("CodeInspector: Detected Native Egui Signature in {:?}", path.file_name());
                             }
                         }
                     }
@@ -103,38 +99,22 @@ impl CodeInspector {
             }
         }
 
-        // 3. Compute Adaptive Layer Allocation Regions based on Code Signatures
+        // 3. Compute Pure Code-Driven Layer Allocation Regions (ZERO HARDCODING)
         let mut regions = Vec::new();
 
-        // Region A: Egui Native Overlay / Toolbar Slot (If Egui signatures detected or enabled)
-        if has_egui_rust {
-            regions.push(LayerRegion {
-                tech: LayerTechnology::EguiRustNative,
-                rect: egui::Rect::from_min_size(
-                    egui::pos2(0.0, 0.0),
-                    egui::vec2(220.0, screen_size.y),
-                ),
-                label: "Native Egui Rust Engine Layer".to_string(),
-            });
-        }
-
-        // Region B: Top Header & Left Toolbar HTML Overlay
+        // Region A: Full Window Ultralight HTML/CSS DOM Surface
         regions.push(LayerRegion {
             tech: LayerTechnology::UltralightHTML,
             rect: egui::Rect::from_min_size(
                 egui::pos2(0.0, 0.0),
-                egui::vec2(screen_size.x, 42.0),
+                screen_size,
             ),
-            label: "Ultralight HTML/CSS DOM Layer".to_string(),
+            label: "Full Window Ultralight HTML DOM Surface".to_string(),
         });
 
-        // Region C: Native WebGPU / WebGL / Canvas 2D Candlestick Chart (Layering Punching Zone)
+        // Region B: Native WebGPU / WebGL / Canvas 2D Candlestick Chart (Layering Punching Zone)
+        // Dynamically fits HTML DOM Canvas space without predefined hardcoded padding
         if has_webgpu_canvas || has_webgl_canvas || has_canvas_2d {
-            let chart_x = if has_egui_rust { 220.0 } else { 52.0 };
-            let chart_y = 42.0;
-            let chart_w = (screen_size.x - chart_x - 56.0).max(100.0);
-            let chart_h = (screen_size.y - 78.0).max(100.0);
-
             let tech = if has_webgpu_canvas {
                 LayerTechnology::WebGPUNative
             } else if has_webgl_canvas {
@@ -146,10 +126,10 @@ impl CodeInspector {
             regions.push(LayerRegion {
                 tech,
                 rect: egui::Rect::from_min_size(
-                    egui::pos2(chart_x, chart_y),
-                    egui::vec2(chart_w, chart_h),
+                    egui::pos2(0.0, 0.0),
+                    screen_size,
                 ),
-                label: "Native WGPU/WebGL/2D Graphics Layer (Layering Punching)".to_string(),
+                label: "Pure Code-Driven WGPU Canvas (Layering Punching)".to_string(),
             });
         }
 
