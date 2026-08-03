@@ -1,7 +1,10 @@
-pub mod chart_engine;
 pub mod ultralight_engine;
-pub mod qt_engine;
+pub mod chart_engine;
 pub mod cursor_engine;
 pub mod hft_engine;
 pub mod excel_export;
 pub mod pdf_export;
+pub mod qt_engine;
+pub mod permission_engine;
+pub mod icon_engine;
+pub mod branding;

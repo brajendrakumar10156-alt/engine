@@ -14,6 +14,9 @@ use engine::hft_engine::HftEngine;
 use engine::excel_export::ExcelExportEngine;
 use engine::pdf_export::PdfExportEngine;
 use engine::qt_engine::QtDataEngine;
+use engine::permission_engine::{PermissionEngine, PermissionType};
+use engine::icon_engine::IconEngine;
+use engine::branding::BrandingEngine;
 use std::sync::Arc;
 use std::path::PathBuf;
 
@@ -43,27 +46,29 @@ struct SmartBrainApp {
     ultralight_engine: UltralightEngine,
     cursor_engine: CursorEngine,
     hft_engine: HftEngine,
+    permission_engine: PermissionEngine,
+    branding_engine: BrandingEngine,
     event_router: EventRouter,
     #[allow(dead_code)]
     qt_engine: QtDataEngine,
     show_dynamic_popup: bool,
-    use_webgl_mode: bool, // Toggle between Standard WebGL vs Next-Gen WebGPU
+    use_webgl_mode: bool,
     export_status_msg: String,
 }
 
 impl SmartBrainApp {
     fn new(wgpu_render_state: &egui_wgpu::RenderState) -> Self {
         let mut ultralight_engine = UltralightEngine::new();
-        
-        // Register initial UI bounding boxes for Layering Punching (top navbar, sidebar)
-        ultralight_engine.register_dirty_rect(DirtyRect::new(0.0, 0.0, 1280.0, 40.0)); // Top nav
+        ultralight_engine.register_dirty_rect(DirtyRect::new(0.0, 0.0, 1280.0, 40.0));
 
         Self {
             layout_engine: LayoutEngine::new(),
             chart_engine: Arc::new(ChartEngine::new(wgpu_render_state)),
             ultralight_engine,
-            cursor_engine: CursorEngine::new(true), // Universal Cursor Engine
+            cursor_engine: CursorEngine::new(true),
             hft_engine: HftEngine::new(),
+            permission_engine: PermissionEngine::new(),
+            branding_engine: BrandingEngine::new("Satyam Trading App", "Custom Enterprise Developer"),
             event_router: EventRouter::new(),
             qt_engine: QtDataEngine::new(),
             show_dynamic_popup: false,
@@ -77,36 +82,32 @@ impl eframe::App for SmartBrainApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let screen_rect = ctx.screen_rect();
 
-        // Render Ultralight surface & clear expired dirty rects
         self.ultralight_engine.render_html_surface();
 
-        // Track pointer position and mouse press state
         let is_mouse_down = ctx.input(|i| i.pointer.primary_down());
         if let Some(pointer_pos) = ctx.pointer_latest_pos() {
             self.cursor_engine.update_state(pointer_pos, is_mouse_down);
             self.event_router.route_mouse_event(pointer_pos, &self.layout_engine.current_layout.html_punch_rects);
         }
         
-        // 1. Calculate Tiling & Layering Punching zones
         self.layout_engine.calculate_tiling(
             screen_rect.size(),
             &self.ultralight_engine.active_dirty_rects,
         );
         let layout = self.layout_engine.current_layout.clone();
 
-        // --- RENDER REGION 1: NATIVE EGUI CONTROL PANEL (WebGPU inside Egui) ---
+        // --- RENDER REGION 1: NATIVE EGUI CONTROL PANEL ---
         for (i, egui_rect) in layout.egui_rects.iter().enumerate() {
             egui::Window::new(format!("Native Control Panel {}", i))
                 .fixed_rect(*egui_rect)
                 .title_bar(false)
                 .show(ctx, |ui| {
                     ui.heading("Egui + Rust Native Panel");
-                    ui.label("100% Native Rust Egui UI.");
+                    ui.label("100% Native Rust Egui UI with RGBA Icons.");
 
-                    if ui.button("Toggle Dynamic HTML Popup").clicked() {
+                    if IconEngine::render_icon_button(ui, "🔔", "Toggle Dynamic HTML Popup", egui::Color32::from_rgb(255, 200, 0)) {
                         self.show_dynamic_popup = !self.show_dynamic_popup;
                         if self.show_dynamic_popup {
-                            // Register dynamic popup bounding box (chota 300x200) for Layering Punching
                             self.ultralight_engine.register_dirty_rect(DirtyRect::new(400.0, 200.0, 300.0, 200.0));
                             self.ultralight_engine.receive_js_trigger("popup_opened");
                         } else {
@@ -129,7 +130,7 @@ impl eframe::App for SmartBrainApp {
                     ui.separator();
                     ui.heading("Phase E: HFT & Exports");
                     
-                    if ui.button("Run Polars HFT 1M Candle Math").clicked() {
+                    if IconEngine::render_icon_button(ui, "⚡", "Run Polars HFT 1M Candle Math", egui::Color32::from_rgb(0, 255, 180)) {
                         let dummy_prices: Vec<f64> = (0..10_000).map(|i| 100.0 + (i as f64 * 0.01)).collect();
                         match self.hft_engine.calculate_indicators(&dummy_prices) {
                             Ok(res) => {
@@ -142,7 +143,7 @@ impl eframe::App for SmartBrainApp {
                     }
 
                     ui.horizontal(|ui| {
-                        if ui.button("Export Native Excel").clicked() {
+                        if IconEngine::render_icon_button(ui, "📊", "Export Native Excel", egui::Color32::from_rgb(40, 200, 100)) {
                             let dest = PathBuf::from("smart_brain_report.xlsx");
                             match ExcelExportEngine::export_trading_report(&dest, "BTC/USDT", 5_000) {
                                 Ok(_) => self.export_status_msg = "Excel Exported: smart_brain_report.xlsx".to_string(),
@@ -150,7 +151,7 @@ impl eframe::App for SmartBrainApp {
                             }
                         }
 
-                        if ui.button("Export Native PDF").clicked() {
+                        if IconEngine::render_icon_button(ui, "📄", "Export Native PDF", egui::Color32::from_rgb(255, 80, 80)) {
                             let dest = PathBuf::from("smart_brain_chart.pdf");
                             match PdfExportEngine::export_pdf_report(&dest, "Smart Brain Chart Analysis") {
                                 Ok(_) => self.export_status_msg = "PDF Exported: smart_brain_chart.pdf".to_string(),
@@ -162,14 +163,24 @@ impl eframe::App for SmartBrainApp {
                     ui.label(format!("Status: {}", self.export_status_msg));
 
                     ui.separator();
-                    ui.checkbox(&mut self.cursor_engine.enable_coordinate_crosshair, "Enable Coordinate Graph Crosshair");
+                    ui.heading("Phase X: Hardware API Permission Guard");
+                    ui.horizontal(|ui| {
+                        if ui.button("Request Bluetooth").clicked() {
+                            self.permission_engine.request_permission(PermissionType::Bluetooth);
+                        }
+                        if ui.button("Request WebRTC").clicked() {
+                            self.permission_engine.request_permission(PermissionType::WebRTC);
+                        }
+                        if ui.button("Request USB").clicked() {
+                            self.permission_engine.request_permission(PermissionType::USBDevice);
+                        }
+                    });
 
                     ui.separator();
-                    ui.label("Dual Graphics Pipeline Support:");
-                    ui.label("✔ WebGL2 Chrome Standard Mode");
-                    ui.label("✔ WebGPU Next-Gen Mode");
-                    ui.label("✔ WebGL/WebGPU inside Egui");
-                    ui.label("✔ WebGL/WebGPU inside Ultralight Punch");
+                    ui.checkbox(&mut self.cursor_engine.enable_coordinate_crosshair, "Enable Coordinate Graph Crosshair");
+
+                    // Render mandatory Core Engine Credits & Custom Brand Footer
+                    self.branding_engine.render_credit_footer(ui);
                 });
         }
 
@@ -201,7 +212,7 @@ impl eframe::App for SmartBrainApp {
                 });
         }
 
-        // --- RENDER REGION 3: DYNAMIC ULTRALIGHT HTML POPUP (Layering Punching) ---
+        // --- RENDER REGION 3: DYNAMIC HTML POPUP ---
         if self.show_dynamic_popup {
             egui::Window::new("Dynamic HTML Popup (Ultralight)")
                 .fixed_pos([400.0, 200.0])
@@ -213,10 +224,35 @@ impl eframe::App for SmartBrainApp {
                 });
         }
 
-        // Evaluate cursor state: Defaults to NORMAL OS CURSOR everywhere!
-        self.cursor_engine.evaluate_context(is_over_coordinate_graph, is_mouse_down);
+        // --- RUNTIME END-USER PERMISSION PROMPT DIALOG MODAL ---
+        if let Some(pending_perm) = self.permission_engine.pending_prompt {
+            egui::Window::new("⚠️ System Permission Request")
+                .fixed_pos([450.0, 250.0])
+                .fixed_size([380.0, 180.0])
+                .collapsible(false)
+                .resizable(false)
+                .show(ctx, |ui| {
+                    ui.heading("Hardware Access Requested!");
+                    ui.separator();
+                    ui.label(format!("Application is requesting permission to access:"));
+                    ui.label(egui::RichText::new(pending_perm.display_name()).strong().color(egui::Color32::LIGHT_BLUE));
+                    ui.label("Do you grant permission to this hardware subsystem?");
+                    ui.add_space(10.0);
 
-        // --- RENDER UNIVERSAL CURSOR ---
+                    ui.horizontal(|ui| {
+                        if ui.button(egui::RichText::new("  Allow  ").color(egui::Color32::GREEN)).clicked() {
+                            self.permission_engine.respond_permission(pending_perm, true);
+                            self.export_status_msg = format!("Permission GRANTED for {}", pending_perm.display_name());
+                        }
+                        if ui.button(egui::RichText::new("  Deny  ").color(egui::Color32::RED)).clicked() {
+                            self.permission_engine.respond_permission(pending_perm, false);
+                            self.export_status_msg = format!("Permission DENIED for {}", pending_perm.display_name());
+                        }
+                    });
+                });
+        }
+
+        self.cursor_engine.evaluate_context(is_over_coordinate_graph, is_mouse_down);
         self.cursor_engine.render(ctx, screen_rect.size());
     }
 }
