@@ -109,6 +109,7 @@ pub struct UltralightEngine {
     pub gpu_driver: UltralightGpuDriver,
     pub active_dirty_rects: Vec<DirtyRect>,
     pub pending_js_triggers: VecDeque<String>,
+    pub current_url: String,
 }
 
 impl UltralightEngine {
@@ -119,18 +120,27 @@ impl UltralightEngine {
             gpu_driver: UltralightGpuDriver::new(),
             active_dirty_rects: Vec::new(),
             pending_js_triggers: VecDeque::new(),
+            current_url: "file:///C:/Users/satya/OneDrive/Pictures/satyam/dist/index.html".to_string(),
         }
+    }
+
+    /// Loads a local or remote HTML bundle URL into Ultralight WebKit Engine
+    #[allow(dead_code)]
+    pub fn load_url(&mut self, url: &str) {
+        log::info!("Ultralight Engine loading URL: {}", url);
+        self.current_url = url.to_string();
+        self.normal_refresh();
     }
 
     /// Performs Normal Refresh: Reloads active HTML/CSS surface while keeping cache intact
     pub fn normal_refresh(&mut self) {
-        log::info!("Executing Normal Refresh (F5 / Ctrl+R): Reloading active HTML DOM surface...");
+        log::info!("Executing Normal Refresh (F5 / Ctrl+R): Reloading active HTML DOM surface ({})...", self.current_url);
         self.clear_expired_rects();
     }
 
     /// Performs Hard Refresh: Wipes DOM cache, flushes GPU VRAM, resets dirty rects
     pub fn hard_refresh(&mut self) {
-        log::info!("Executing Hard Refresh (Ctrl+Shift+R / Ctrl+F5): Wiping DOM cache & GPU VRAM...");
+        log::info!("Executing Hard Refresh (Ctrl+Shift+R / Ctrl+F5): Wiping DOM cache & GPU VRAM for {}...", self.current_url);
         self.active_dirty_rects.clear();
         self.register_dirty_rect(DirtyRect::new(0.0, 0.0, 1280.0, 40.0));
         self.gpu_driver.flush_gpu_cache();

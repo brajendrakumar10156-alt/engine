@@ -28,7 +28,7 @@ fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1280.0, 720.0])
-            .with_title("Smart Brain Engine — Dual WebGL2 & WebGPU Hybrid OS"),
+            .with_title("Satyam CADPro Dashboard — Smart Brain Native Hybrid OS"),
         ..Default::default()
     };
 
@@ -74,7 +74,7 @@ impl SmartBrainApp {
             cursor_engine: CursorEngine::new(true),
             hft_engine: HftEngine::new(),
             permission_engine: PermissionEngine::new(),
-            branding_engine: BrandingEngine::new("Satyam Trading App", "Custom Enterprise Developer"),
+            branding_engine: BrandingEngine::new("Satyam CADPro App", "Satyam Enterprise"),
             icon_3d_engine: Icon3DEngine::new(),
             theme_engine: ThemeEngine::new(),
             event_router: EventRouter::new(),
@@ -82,7 +82,7 @@ impl SmartBrainApp {
             show_dynamic_popup: false,
             show_3d_icons: true,
             use_webgl_mode: false,
-            export_status_msg: "Ready".to_string(),
+            export_status_msg: "Loaded: C:/Users/satya/OneDrive/Pictures/satyam/dist/index.html".to_string(),
         }
     }
 }
@@ -91,20 +91,17 @@ impl eframe::App for SmartBrainApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let screen_rect = ctx.screen_rect();
 
-        // --- GLOBAL KEYBOARD SHORTCUTS LISTENER (F5, Ctrl+R, Ctrl+Shift+R, Ctrl+F5) ---
         ctx.input(|i| {
             let is_ctrl = i.modifiers.ctrl;
             let is_shift = i.modifiers.shift;
 
             if i.key_pressed(egui::Key::F5) || (is_ctrl && i.key_pressed(egui::Key::R)) {
                 if is_shift || i.key_pressed(egui::Key::F5) && is_ctrl {
-                    // Hard Refresh Shortcut: Ctrl+Shift+R / Ctrl+F5
                     self.ultralight_engine.hard_refresh();
-                    self.export_status_msg = "⚡ HARD REFRESH: Cache Wiped & GPU VRAM Flushed!".to_string();
+                    self.export_status_msg = "⚡ HARD REFRESH: React Cache Wiped & GPU VRAM Flushed!".to_string();
                 } else {
-                    // Normal Refresh Shortcut: F5 / Ctrl+R
                     self.ultralight_engine.normal_refresh();
-                    self.export_status_msg = "🔄 Normal Refresh: DOM Surface Reloaded".to_string();
+                    self.export_status_msg = "🔄 Normal Refresh: React DOM Surface Reloaded".to_string();
                 }
             }
         });
@@ -140,21 +137,20 @@ impl eframe::App for SmartBrainApp {
                 .show(ctx, |ui| {
                     ui.horizontal(|ui| {
                         IconEngine::render_icon(ui, IconType::Settings, 20.0, self.theme_engine.accent_color32());
-                        ui.heading(egui::RichText::new("Egui + Rust Native Panel").color(self.theme_engine.text_color32()));
+                        ui.heading(egui::RichText::new("Satyam CADPro Engine Panel").color(self.theme_engine.text_color32()));
                     });
-                    ui.label("100% Native Rust Egui UI with Full 32-bit RGBA Theme Engine.");
+                    ui.label(egui::RichText::new("🌐 Active App: C:/Users/satya/OneDrive/Pictures/satyam").small().color(egui::Color32::LIGHT_BLUE));
 
-                    // Refresh System Toolbar Buttons & Shortcuts
                     ui.separator();
                     ui.heading("🔄 Refresh Controls & Shortcuts:");
                     ui.horizontal(|ui| {
                         if ui.button("🔄 Normal Refresh (F5 / Ctrl+R)").clicked() {
                             self.ultralight_engine.normal_refresh();
-                            self.export_status_msg = "🔄 Normal Refresh: DOM Surface Reloaded".to_string();
+                            self.export_status_msg = "🔄 Normal Refresh: React DOM Surface Reloaded".to_string();
                         }
                         if ui.button("⚡🔄 Hard Refresh (Ctrl+Shift+R)").clicked() {
                             self.ultralight_engine.hard_refresh();
-                            self.export_status_msg = "⚡ HARD REFRESH: Cache Wiped & GPU VRAM Flushed!".to_string();
+                            self.export_status_msg = "⚡ HARD REFRESH: React Cache Wiped & GPU VRAM Flushed!".to_string();
                         }
                     });
 
@@ -282,7 +278,7 @@ impl eframe::App for SmartBrainApp {
                 .fixed_size([300.0, 200.0])
                 .show(ctx, |ui| {
                     ui.heading("Ultralight HTML DOM");
-                    ui.label("Dynamic HTML Layering active!");
+                    ui.label(format!("Loaded: {}", self.ultralight_engine.current_url));
                     ui.label("Background graphics chart is stencil/scissor punched behind this box.");
                 });
         }
