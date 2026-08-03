@@ -28,12 +28,12 @@ fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1280.0, 720.0])
-            .with_title("Satyam CADPro Dashboard — Smart Brain Native Hybrid OS"),
+            .with_title("QuantaAI — Smart Brain Native Hybrid OS"),
         ..Default::default()
     };
 
     eframe::run_native(
-        "Smart Brain Engine",
+        "QuantaAI Engine",
         options,
         Box::new(|cc| {
             egui_extras::install_image_loaders(&cc.egui_ctx);
@@ -56,16 +56,18 @@ struct SmartBrainApp {
     event_router: EventRouter,
     #[allow(dead_code)]
     qt_engine: QtDataEngine,
+    show_dev_panel: bool,
     show_dynamic_popup: bool,
     show_3d_icons: bool,
     use_webgl_mode: bool,
+    active_tab: String,
     export_status_msg: String,
 }
 
 impl SmartBrainApp {
     fn new(wgpu_render_state: &egui_wgpu::RenderState) -> Self {
         let mut ultralight_engine = UltralightEngine::new();
-        ultralight_engine.register_dirty_rect(DirtyRect::new(0.0, 0.0, 1280.0, 40.0));
+        ultralight_engine.register_dirty_rect(DirtyRect::new(0.0, 0.0, 1280.0, 42.0));
 
         Self {
             layout_engine: LayoutEngine::new(),
@@ -74,15 +76,17 @@ impl SmartBrainApp {
             cursor_engine: CursorEngine::new(true),
             hft_engine: HftEngine::new(),
             permission_engine: PermissionEngine::new(),
-            branding_engine: BrandingEngine::new("Satyam CADPro App", "Satyam Enterprise"),
+            branding_engine: BrandingEngine::new("QuantaAI Trading App", "Satyam Enterprise"),
             icon_3d_engine: Icon3DEngine::new(),
             theme_engine: ThemeEngine::new(),
             event_router: EventRouter::new(),
             qt_engine: QtDataEngine::new(),
+            show_dev_panel: false,
             show_dynamic_popup: false,
-            show_3d_icons: true,
+            show_3d_icons: false,
             use_webgl_mode: false,
-            export_status_msg: "Loaded: C:/Users/satya/OneDrive/Pictures/satyam/dist/index.html".to_string(),
+            active_tab: "Paper Trading".to_string(),
+            export_status_msg: "QuantaAI Engine Active | 100% WebGPU GPU Accelerated".to_string(),
         }
     }
 }
@@ -98,11 +102,15 @@ impl eframe::App for SmartBrainApp {
             if i.key_pressed(egui::Key::F5) || (is_ctrl && i.key_pressed(egui::Key::R)) {
                 if is_shift || i.key_pressed(egui::Key::F5) && is_ctrl {
                     self.ultralight_engine.hard_refresh();
-                    self.export_status_msg = "⚡ HARD REFRESH: React Cache Wiped & GPU VRAM Flushed!".to_string();
+                    self.export_status_msg = "⚡ HARD REFRESH: Cache Wiped & GPU VRAM Flushed!".to_string();
                 } else {
                     self.ultralight_engine.normal_refresh();
-                    self.export_status_msg = "🔄 Normal Refresh: React DOM Surface Reloaded".to_string();
+                    self.export_status_msg = "🔄 Normal Refresh: DOM Surface Reloaded".to_string();
                 }
+            }
+
+            if is_ctrl && i.key_pressed(egui::Key::D) {
+                self.show_dev_panel = !self.show_dev_panel;
             }
         });
 
@@ -124,57 +132,143 @@ impl eframe::App for SmartBrainApp {
             self.icon_3d_engine.render(ctx);
         }
 
-        // --- RENDER REGION 1: NATIVE EGUI CONTROL PANEL ---
-        for (i, egui_rect) in layout.egui_rects.iter().enumerate() {
-            let panel_frame = egui::Frame::window(&ctx.style())
-                .fill(self.theme_engine.panel_color32())
-                .rounding(10.0);
+        // --- LAYER 1: NATIVE WEBGPU CANDLESTICK CHART (LAYERING PUNCHING ZONE) ---
+        let mut is_over_coordinate_graph = false;
+        for wgpu_rect in layout.wgpu_rects.iter() {
+            if let Some(pos) = ctx.pointer_latest_pos() {
+                if wgpu_rect.contains(pos) {
+                    is_over_coordinate_graph = true;
+                }
+            }
 
-            egui::Window::new(format!("Native Control Panel {}", i))
-                .fixed_rect(*egui_rect)
+            egui::CentralPanel::default()
+                .frame(egui::Frame::none().fill(egui::Color32::from_rgb(19, 23, 34)))
+                .show(ctx, |_ui| {});
+
+            egui::Window::new("WebGPU Native Chart Engine")
+                .fixed_rect(*wgpu_rect)
                 .title_bar(false)
-                .frame(panel_frame)
+                .frame(egui::Frame::none())
                 .show(ctx, |ui| {
-                    ui.horizontal(|ui| {
-                        IconEngine::render_icon(ui, IconType::Settings, 20.0, self.theme_engine.accent_color32());
-                        ui.heading(egui::RichText::new("Satyam CADPro Engine Panel").color(self.theme_engine.text_color32()));
-                    });
-                    ui.label(egui::RichText::new("🌐 Active App: C:/Users/satya/OneDrive/Pictures/satyam").small().color(egui::Color32::LIGHT_BLUE));
+                    let (rect, _response) = ui.allocate_exact_size(wgpu_rect.size(), egui::Sense::hover());
+                    
+                    let cb = egui_wgpu::Callback::new_paint_callback(
+                        rect,
+                        engine::chart_engine::ChartCallback {
+                            engine: self.chart_engine.clone(),
+                            punch_rects: layout.html_punch_rects.clone(),
+                            force_webgl_mode: self.use_webgl_mode,
+                        },
+                    );
+                    ui.painter().add(cb);
+                });
+        }
 
-                    ui.separator();
-                    ui.heading("🔄 Refresh Controls & Shortcuts:");
-                    ui.horizontal(|ui| {
-                        if ui.button("🔄 Normal Refresh (F5 / Ctrl+R)").clicked() {
-                            self.ultralight_engine.normal_refresh();
-                            self.export_status_msg = "🔄 Normal Refresh: React DOM Surface Reloaded".to_string();
+        // --- LAYER 2: TOP NAVIGATION HEADER BAR (MATCHING IMAGE 1) ---
+        egui::TopBottomPanel::top("top_header_panel")
+            .exact_height(42.0)
+            .frame(egui::Frame::none().fill(egui::Color32::from_rgb(19, 23, 34)))
+            .show(ctx, |ui| {
+                ui.horizontal_centered(|ui| {
+                    ui.add_space(8.0);
+                    ui.heading(egui::RichText::new("QuantaAI").strong().color(egui::Color32::WHITE));
+                    ui.add_space(10.0);
+
+                    // Symbol Selector Badge
+                    ui.group(|ui| {
+                        ui.style_mut().visuals.widgets.noninteractive.bg_fill = egui::Color32::from_rgb(28, 34, 48);
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new("Binance 🔍  OGTRY").strong().color(egui::Color32::from_rgb(255, 200, 0)));
+                            ui.label(egui::RichText::new("$6.53  ⚡28  1m").color(egui::Color32::from_rgb(255, 80, 80)));
+                        });
+                    });
+
+                    ui.add_space(10.0);
+                    // WebGPU Hardware Acceleration Badge
+                    ui.group(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new("🟢 WEBGPU HARDWARE: NVIDIA GeForce RTX (WGPU Native)").small().color(egui::Color32::from_rgb(0, 255, 180)));
+                        });
+                    });
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.add_space(10.0);
+                        if ui.button(egui::RichText::new("🖥️ Desktop App").small().color(egui::Color32::WHITE)).clicked() {
+                            self.show_dev_panel = !self.show_dev_panel;
                         }
-                        if ui.button("⚡🔄 Hard Refresh (Ctrl+Shift+R)").clicked() {
+                        if ui.button("⚡ Hard Refresh").clicked() {
                             self.ultralight_engine.hard_refresh();
-                            self.export_status_msg = "⚡ HARD REFRESH: React Cache Wiped & GPU VRAM Flushed!".to_string();
+                            self.export_status_msg = "⚡ HARD REFRESH: Cache Wiped & GPU VRAM Flushed!".to_string();
+                        }
+                        if ui.button("🔄 Refresh").clicked() {
+                            self.ultralight_engine.normal_refresh();
+                            self.export_status_msg = "🔄 Normal Refresh: DOM Reloaded".to_string();
                         }
                     });
+                });
+            });
 
-                    if IconEngine::render_icon_button(ui, IconType::NotificationBell, "Toggle Dynamic HTML Popup", egui::Color32::from_rgb(255, 200, 0)) {
-                        self.show_dynamic_popup = !self.show_dynamic_popup;
-                        if self.show_dynamic_popup {
-                            self.ultralight_engine.register_dirty_rect(DirtyRect::new(400.0, 200.0, 300.0, 200.0));
-                            self.ultralight_engine.receive_js_trigger("popup_opened");
-                        } else {
-                            self.ultralight_engine.active_dirty_rects.retain(|r| r.x != 400.0);
-                            self.ultralight_engine.receive_js_trigger("popup_closed");
+        // --- LAYER 3: LEFT DRAWING TOOLBAR (MATCHING IMAGE 1) ---
+        egui::SidePanel::left("left_drawing_toolbar")
+            .exact_width(52.0)
+            .resizable(false)
+            .frame(egui::Frame::none().fill(egui::Color32::from_rgb(19, 23, 34)))
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(8.0);
+                    let _ = IconEngine::render_icon_button(ui, IconType::Settings, "", egui::Color32::LIGHT_GRAY);
+                    ui.add_space(6.0);
+                    let _ = IconEngine::render_icon_button(ui, IconType::LightningHFT, "", egui::Color32::from_rgb(0, 255, 180));
+                    ui.add_space(6.0);
+                    let _ = IconEngine::render_icon_button(ui, IconType::ThemePalette, "", egui::Color32::from_rgb(255, 200, 0));
+                    ui.add_space(6.0);
+                    let _ = IconEngine::render_icon_button(ui, IconType::NotificationBell, "", egui::Color32::from_rgb(200, 100, 255));
+                    ui.add_space(6.0);
+                    let _ = IconEngine::render_icon_button(ui, IconType::ExportExcel, "", egui::Color32::from_rgb(40, 200, 100));
+                    ui.add_space(6.0);
+                    let _ = IconEngine::render_icon_button(ui, IconType::ExportPdf, "", egui::Color32::from_rgb(255, 80, 80));
+                    ui.add_space(6.0);
+                    let _ = IconEngine::render_icon_button(ui, IconType::SecurityShield, "", egui::Color32::from_rgb(255, 180, 0));
+                });
+            });
+
+        // --- LAYER 4: BOTTOM STATUS & TAB BAR (MATCHING IMAGE 1) ---
+        egui::TopBottomPanel::bottom("bottom_status_panel")
+            .exact_height(36.0)
+            .frame(egui::Frame::none().fill(egui::Color32::from_rgb(19, 23, 34)))
+            .show(ctx, |ui| {
+                ui.horizontal_centered(|ui| {
+                    ui.add_space(8.0);
+                    
+                    let tabs = ["Paper Trading", "Strategy Tester", "Arbitrage", "Advanced Tools"];
+                    for tab in tabs {
+                        if ui.selectable_label(self.active_tab == tab, tab).clicked() {
+                            self.active_tab = tab.to_string();
                         }
                     }
 
-                    ui.checkbox(&mut self.show_3d_icons, "Show 3D Desktop Icons");
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.add_space(10.0);
+                        ui.label(egui::RichText::new(format!("Status: {}", self.export_status_msg)).small().color(egui::Color32::YELLOW));
+                        ui.label(egui::RichText::new("🕒 13:37:30 UTC | % | log | auto").small().color(egui::Color32::LIGHT_GRAY));
+                    });
+                });
+            });
 
+        // --- LAYER 5: OPTIONAL DEVTOOLS OVERLAY PANEL (TOGGLED VIA CTRL+D OR DESKTOP APP BUTTON) ---
+        if self.show_dev_panel {
+            egui::Window::new("QuantaAI DevTools & Native Controls")
+                .fixed_pos([100.0, 80.0])
+                .fixed_size([420.0, 520.0])
+                .show(ctx, |ui| {
+                    ui.heading("QuantaAI Native Engine Controls");
                     ui.separator();
+
+                    ui.checkbox(&mut self.show_3d_icons, "Show 3D Desktop Icons");
                     self.theme_engine.render_customizer(ui);
 
                     ui.separator();
-                    ui.horizontal(|ui| {
-                        IconEngine::render_icon(ui, IconType::ThemePalette, 18.0, self.theme_engine.accent_color32());
-                        ui.heading("Graphics Pipeline Mode (WebGL vs WebGPU):");
-                    });
+                    ui.heading("Graphics Pipeline Mode:");
                     ui.horizontal(|ui| {
                         if ui.selectable_label(!self.use_webgl_mode, "WebGPU (Next-Gen WGSL)").clicked() {
                             self.use_webgl_mode = false;
@@ -185,17 +279,11 @@ impl eframe::App for SmartBrainApp {
                     });
 
                     ui.separator();
-                    ui.heading("Phase E: HFT & Exports");
-                    
                     if IconEngine::render_icon_button(ui, IconType::LightningHFT, "Run Polars HFT 1M Candle Math", self.theme_engine.accent_color32()) {
                         let dummy_prices: Vec<f64> = (0..10_000).map(|i| 100.0 + (i as f64 * 0.01)).collect();
                         match self.hft_engine.calculate_indicators(&dummy_prices) {
-                            Ok(res) => {
-                                self.export_status_msg = format!("Polars Math Done: {} items in <1ms", res.len());
-                            }
-                            Err(e) => {
-                                self.export_status_msg = format!("HFT Error: {:?}", e);
-                            }
+                            Ok(res) => self.export_status_msg = format!("Polars Math Done: {} items in <1ms", res.len()),
+                            Err(e) => self.export_status_msg = format!("HFT Error: {:?}", e),
                         }
                     }
 
@@ -217,13 +305,8 @@ impl eframe::App for SmartBrainApp {
                         }
                     });
 
-                    ui.label(egui::RichText::new(format!("Status: {}", self.export_status_msg)).strong().color(egui::Color32::YELLOW));
-
                     ui.separator();
-                    ui.horizontal(|ui| {
-                        IconEngine::render_icon(ui, IconType::SecurityShield, 18.0, egui::Color32::from_rgb(255, 180, 0));
-                        ui.heading("Phase X: Hardware API Permission Guard");
-                    });
+                    ui.heading("Hardware API Permission Guard");
                     ui.horizontal(|ui| {
                         if IconEngine::render_icon_button(ui, IconType::Bluetooth, "Bluetooth", egui::Color32::from_rgb(0, 150, 255)) {
                             self.permission_engine.request_permission(PermissionType::Bluetooth);
@@ -236,50 +319,7 @@ impl eframe::App for SmartBrainApp {
                         }
                     });
 
-                    ui.separator();
-                    ui.checkbox(&mut self.cursor_engine.enable_coordinate_crosshair, "Enable Coordinate Graph Crosshair");
-
                     self.branding_engine.render_credit_footer(ui);
-                });
-        }
-
-        // --- RENDER REGION 2: NATIVE CANVAS (PUNCHED LAYER VIA SCISSOR RECT) ---
-        let mut is_over_coordinate_graph = false;
-        for (i, wgpu_rect) in layout.wgpu_rects.iter().enumerate() {
-            if let Some(pos) = ctx.pointer_latest_pos() {
-                if wgpu_rect.contains(pos) {
-                    is_over_coordinate_graph = true;
-                }
-            }
-
-            egui::Window::new(format!("Native Chart Engine {}", i))
-                .fixed_rect(*wgpu_rect)
-                .title_bar(false)
-                .frame(egui::Frame::none())
-                .show(ctx, |ui| {
-                    let (rect, _response) = ui.allocate_exact_size(wgpu_rect.size(), egui::Sense::hover());
-                    
-                    let cb = egui_wgpu::Callback::new_paint_callback(
-                        rect,
-                        engine::chart_engine::ChartCallback {
-                            engine: self.chart_engine.clone(),
-                            punch_rects: layout.html_punch_rects.clone(),
-                            force_webgl_mode: self.use_webgl_mode,
-                        },
-                    );
-                    ui.painter().add(cb);
-                });
-        }
-
-        // --- RENDER REGION 3: DYNAMIC HTML POPUP ---
-        if self.show_dynamic_popup {
-            egui::Window::new("Dynamic HTML Popup (Ultralight)")
-                .fixed_pos([400.0, 200.0])
-                .fixed_size([300.0, 200.0])
-                .show(ctx, |ui| {
-                    ui.heading("Ultralight HTML DOM");
-                    ui.label(format!("Loaded: {}", self.ultralight_engine.current_url));
-                    ui.label("Background graphics chart is stencil/scissor punched behind this box.");
                 });
         }
 
