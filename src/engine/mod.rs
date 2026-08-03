@@ -1,5 +1,5 @@
-pub mod ultralight_engine;
 pub mod chart_engine;
+pub mod ultralight_engine;
 pub mod cursor_engine;
 pub mod hft_engine;
 pub mod excel_export;
@@ -10,3 +10,4 @@ pub mod icon_engine;
 pub mod branding;
 pub mod icon_3d_engine;
 pub mod theme_engine;
+pub mod code_inspector;

@@ -57,17 +57,19 @@ struct SmartBrainApp {
     #[allow(dead_code)]
     qt_engine: QtDataEngine,
     show_dev_panel: bool,
-    show_dynamic_popup: bool,
     show_3d_icons: bool,
     use_webgl_mode: bool,
     active_tab: String,
     export_status_msg: String,
+    project_dir: PathBuf,
 }
 
 impl SmartBrainApp {
     fn new(wgpu_render_state: &egui_wgpu::RenderState) -> Self {
         let mut ultralight_engine = UltralightEngine::new();
         ultralight_engine.register_dirty_rect(DirtyRect::new(0.0, 0.0, 1280.0, 42.0));
+
+        let project_dir = PathBuf::from(r"C:\Users\satya\OneDrive\Pictures\satyam\dist");
 
         Self {
             layout_engine: LayoutEngine::new(),
@@ -82,11 +84,11 @@ impl SmartBrainApp {
             event_router: EventRouter::new(),
             qt_engine: QtDataEngine::new(),
             show_dev_panel: false,
-            show_dynamic_popup: false,
             show_3d_icons: false,
             use_webgl_mode: false,
             active_tab: "Paper Trading".to_string(),
-            export_status_msg: "QuantaAI Engine Active | 100% WebGPU GPU Accelerated".to_string(),
+            export_status_msg: "CodeInspector Active: Auto-detected WebGPU Canvas & React DOM UI".to_string(),
+            project_dir,
         }
     }
 }
@@ -105,7 +107,7 @@ impl eframe::App for SmartBrainApp {
                     self.export_status_msg = "⚡ HARD REFRESH: Cache Wiped & GPU VRAM Flushed!".to_string();
                 } else {
                     self.ultralight_engine.normal_refresh();
-                    self.export_status_msg = "🔄 Normal Refresh: DOM Surface Reloaded".to_string();
+                    self.export_status_msg = "🔄 Normal Refresh: DOM Reloaded".to_string();
                 }
             }
 
@@ -122,7 +124,9 @@ impl eframe::App for SmartBrainApp {
             self.event_router.route_mouse_event(pointer_pos, &self.layout_engine.current_layout.html_punch_rects);
         }
         
-        self.layout_engine.calculate_tiling(
+        // Adaptive Code Inspection & Dynamic Layering Punching Allocation
+        self.layout_engine.calculate_adaptive_tiling(
+            &self.project_dir,
             screen_rect.size(),
             &self.ultralight_engine.active_dirty_rects,
         );
@@ -132,7 +136,7 @@ impl eframe::App for SmartBrainApp {
             self.icon_3d_engine.render(ctx);
         }
 
-        // --- LAYER 1: NATIVE WEBGPU CANDLESTICK CHART (LAYERING PUNCHING ZONE) ---
+        // --- LAYER 1: NATIVE WEBGPU CANDLESTICK CHART (AUTO-ALLOCATED BY CODE INSPECTOR) ---
         let mut is_over_coordinate_graph = false;
         for wgpu_rect in layout.wgpu_rects.iter() {
             if let Some(pos) = ctx.pointer_latest_pos() {
@@ -164,7 +168,7 @@ impl eframe::App for SmartBrainApp {
                 });
         }
 
-        // --- LAYER 2: TOP NAVIGATION HEADER BAR (MATCHING IMAGE 1) ---
+        // --- LAYER 2: TOP NAVIGATION HEADER BAR ---
         egui::TopBottomPanel::top("top_header_panel")
             .exact_height(42.0)
             .frame(egui::Frame::none().fill(egui::Color32::from_rgb(19, 23, 34)))
@@ -184,16 +188,16 @@ impl eframe::App for SmartBrainApp {
                     });
 
                     ui.add_space(10.0);
-                    // WebGPU Hardware Acceleration Badge
+                    // WebGPU Hardware Badge
                     ui.group(|ui| {
                         ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new("🟢 WEBGPU HARDWARE: NVIDIA GeForce RTX (WGPU Native)").small().color(egui::Color32::from_rgb(0, 255, 180)));
+                            ui.label(egui::RichText::new("🟢 WEBGPU HARDWARE: NVIDIA GeForce RTX (Auto Code Inspector Active)").small().color(egui::Color32::from_rgb(0, 255, 180)));
                         });
                     });
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.add_space(10.0);
-                        if ui.button(egui::RichText::new("🖥️ Desktop App").small().color(egui::Color32::WHITE)).clicked() {
+                        if ui.button(egui::RichText::new("🖥️ DevTools (Ctrl+D)").small().color(egui::Color32::WHITE)).clicked() {
                             self.show_dev_panel = !self.show_dev_panel;
                         }
                         if ui.button("⚡ Hard Refresh").clicked() {
@@ -208,7 +212,7 @@ impl eframe::App for SmartBrainApp {
                 });
             });
 
-        // --- LAYER 3: LEFT DRAWING TOOLBAR (MATCHING IMAGE 1) ---
+        // --- LAYER 3: LEFT DRAWING TOOLBAR ---
         egui::SidePanel::left("left_drawing_toolbar")
             .exact_width(52.0)
             .resizable(false)
@@ -232,7 +236,7 @@ impl eframe::App for SmartBrainApp {
                 });
             });
 
-        // --- LAYER 4: BOTTOM STATUS & TAB BAR (MATCHING IMAGE 1) ---
+        // --- LAYER 4: BOTTOM STATUS BAR ---
         egui::TopBottomPanel::bottom("bottom_status_panel")
             .exact_height(36.0)
             .frame(egui::Frame::none().fill(egui::Color32::from_rgb(19, 23, 34)))
@@ -250,18 +254,24 @@ impl eframe::App for SmartBrainApp {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.add_space(10.0);
                         ui.label(egui::RichText::new(format!("Status: {}", self.export_status_msg)).small().color(egui::Color32::YELLOW));
-                        ui.label(egui::RichText::new("🕒 13:37:30 UTC | % | log | auto").small().color(egui::Color32::LIGHT_GRAY));
+                        ui.label(egui::RichText::new("🕒 14:15:00 UTC | % | log | auto").small().color(egui::Color32::LIGHT_GRAY));
                     });
                 });
             });
 
-        // --- LAYER 5: OPTIONAL DEVTOOLS OVERLAY PANEL (TOGGLED VIA CTRL+D OR DESKTOP APP BUTTON) ---
+        // --- LAYER 5: DEVTOOLS OVERLAY PANEL (TOGGLED VIA CTRL+D) ---
         if self.show_dev_panel {
             egui::Window::new("QuantaAI DevTools & Native Controls")
                 .fixed_pos([100.0, 80.0])
                 .fixed_size([420.0, 520.0])
                 .show(ctx, |ui| {
-                    ui.heading("QuantaAI Native Engine Controls");
+                    ui.heading("CodeInspector Scan Diagnostics:");
+                    if let Some(ref plan) = self.layout_engine.current_plan {
+                        ui.label(format!("• WebGPU Canvas Detected: {}", plan.has_webgpu_canvas));
+                        ui.label(format!("• WebGL2 Canvas Detected: {}", plan.has_webgl_canvas));
+                        ui.label(format!("• HTML DOM Surface Active: {}", plan.has_html_dom));
+                        ui.label(format!("• Egui Native Rust Active: {}", plan.has_egui_rust));
+                    }
                     ui.separator();
 
                     ui.checkbox(&mut self.show_3d_icons, "Show 3D Desktop Icons");
