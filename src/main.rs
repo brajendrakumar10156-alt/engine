@@ -17,6 +17,8 @@ use engine::qt_engine::QtDataEngine;
 use engine::permission_engine::{PermissionEngine, PermissionType};
 use engine::icon_engine::{IconEngine, IconType};
 use engine::branding::BrandingEngine;
+use engine::icon_3d_engine::Icon3DEngine;
+use engine::theme_engine::ThemeEngine;
 use std::sync::Arc;
 use std::path::PathBuf;
 
@@ -26,7 +28,7 @@ fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1280.0, 720.0])
-            .with_title("Smart Brain Engine — Dual WebGL & WebGPU Hybrid OS"),
+            .with_title("Smart Brain Engine — Dual WebGL2 & WebGPU Hybrid OS"),
         ..Default::default()
     };
 
@@ -34,7 +36,6 @@ fn main() -> eframe::Result<()> {
         "Smart Brain Engine",
         options,
         Box::new(|cc| {
-            // Initialize egui_extras SVG & image loaders for Egui Native RGBA Icon support
             egui_extras::install_image_loaders(&cc.egui_ctx);
             let wgpu_render_state = cc.wgpu_render_state.clone().expect("WGPU not enabled");
             Box::new(SmartBrainApp::new(&wgpu_render_state))
@@ -50,11 +51,14 @@ struct SmartBrainApp {
     hft_engine: HftEngine,
     permission_engine: PermissionEngine,
     branding_engine: BrandingEngine,
+    icon_3d_engine: Icon3DEngine,
+    theme_engine: ThemeEngine,
     event_router: EventRouter,
     #[allow(dead_code)]
     qt_engine: QtDataEngine,
     show_dynamic_popup: bool,
-    use_webgl_mode: bool,
+    show_3d_icons: bool,
+    use_webgl_mode: bool, // WebGL2 (Chrome GLSL) vs WebGPU (Next-Gen WGSL)
     export_status_msg: String,
 }
 
@@ -71,9 +75,12 @@ impl SmartBrainApp {
             hft_engine: HftEngine::new(),
             permission_engine: PermissionEngine::new(),
             branding_engine: BrandingEngine::new("Satyam Trading App", "Custom Enterprise Developer"),
+            icon_3d_engine: Icon3DEngine::new(),
+            theme_engine: ThemeEngine::new(),
             event_router: EventRouter::new(),
             qt_engine: QtDataEngine::new(),
             show_dynamic_popup: false,
+            show_3d_icons: true,
             use_webgl_mode: false,
             export_status_msg: "Ready".to_string(),
         }
@@ -98,17 +105,27 @@ impl eframe::App for SmartBrainApp {
         );
         let layout = self.layout_engine.current_layout.clone();
 
+        // Render 3D Desktop Icons on screen if enabled
+        if self.show_3d_icons {
+            self.icon_3d_engine.render(ctx);
+        }
+
         // --- RENDER REGION 1: NATIVE EGUI CONTROL PANEL ---
         for (i, egui_rect) in layout.egui_rects.iter().enumerate() {
+            let panel_frame = egui::Frame::window(&ctx.style())
+                .fill(self.theme_engine.panel_color32())
+                .rounding(10.0);
+
             egui::Window::new(format!("Native Control Panel {}", i))
                 .fixed_rect(*egui_rect)
                 .title_bar(false)
+                .frame(panel_frame)
                 .show(ctx, |ui| {
                     ui.horizontal(|ui| {
-                        IconEngine::render_icon(ui, IconType::Settings, 20.0, egui::Color32::from_rgb(0, 200, 255));
-                        ui.heading("Egui + Rust Native Panel");
+                        IconEngine::render_icon(ui, IconType::Settings, 20.0, self.theme_engine.accent_color32());
+                        ui.heading(egui::RichText::new("Egui + Rust Native Panel").color(self.theme_engine.text_color32()));
                     });
-                    ui.label("100% Native Rust Egui UI with Full 32-bit RGBA Icon Library.");
+                    ui.label("100% Native Rust Egui UI with Full 32-bit RGBA Theme Engine.");
 
                     if IconEngine::render_icon_button(ui, IconType::NotificationBell, "Toggle Dynamic HTML Popup", egui::Color32::from_rgb(255, 200, 0)) {
                         self.show_dynamic_popup = !self.show_dynamic_popup;
@@ -121,16 +138,22 @@ impl eframe::App for SmartBrainApp {
                         }
                     }
 
+                    ui.checkbox(&mut self.show_3d_icons, "Show 3D Desktop Icons");
+
+                    ui.separator();
+                    // Live RGBA Theme Customizer Controls
+                    self.theme_engine.render_customizer(ui);
+
                     ui.separator();
                     ui.horizontal(|ui| {
-                        IconEngine::render_icon(ui, IconType::ThemePalette, 18.0, egui::Color32::from_rgb(255, 100, 200));
-                        ui.heading("Graphics Pipeline Mode:");
+                        IconEngine::render_icon(ui, IconType::ThemePalette, 18.0, self.theme_engine.accent_color32());
+                        ui.heading("Graphics Pipeline Mode (WebGL vs WebGPU):");
                     });
                     ui.horizontal(|ui| {
-                        if ui.selectable_label(!self.use_webgl_mode, "WebGPU (Next-Gen)").clicked() {
+                        if ui.selectable_label(!self.use_webgl_mode, "WebGPU (Next-Gen WGSL)").clicked() {
                             self.use_webgl_mode = false;
                         }
-                        if ui.selectable_label(self.use_webgl_mode, "WebGL2 (Chrome Style)").clicked() {
+                        if ui.selectable_label(self.use_webgl_mode, "WebGL2 (Chrome GLSL)").clicked() {
                             self.use_webgl_mode = true;
                         }
                     });
@@ -138,7 +161,7 @@ impl eframe::App for SmartBrainApp {
                     ui.separator();
                     ui.heading("Phase E: HFT & Exports");
                     
-                    if IconEngine::render_icon_button(ui, IconType::LightningHFT, "Run Polars HFT 1M Candle Math", egui::Color32::from_rgb(0, 255, 180)) {
+                    if IconEngine::render_icon_button(ui, IconType::LightningHFT, "Run Polars HFT 1M Candle Math", self.theme_engine.accent_color32()) {
                         let dummy_prices: Vec<f64> = (0..10_000).map(|i| 100.0 + (i as f64 * 0.01)).collect();
                         match self.hft_engine.calculate_indicators(&dummy_prices) {
                             Ok(res) => {

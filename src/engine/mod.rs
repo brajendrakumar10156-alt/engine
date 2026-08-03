@@ -8,3 +8,5 @@ pub mod qt_engine;
 pub mod permission_engine;
 pub mod icon_engine;
 pub mod branding;
+pub mod icon_3d_engine;
+pub mod theme_engine;
