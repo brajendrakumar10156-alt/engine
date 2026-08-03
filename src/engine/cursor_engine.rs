@@ -3,12 +3,12 @@ use eframe::egui;
 /// Represents the active rendering mode for the Unified Custom Cursor
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CursorRenderMode {
-    GPUAccelerated, // 144+ FPS WGPU/WebGL Shader Cursor
-    CPUSoftware,    // Softbuffer / tiny-skia CPU Fallback Cursor (No GPU)
+    GPUAccelerated, // 144+ FPS WGPU/WebGL Arrow Pointer Cursor
+    CPUSoftware,    // Softbuffer / tiny-skia CPU Fallback Arrow Cursor (No GPU)
 }
 
 /// Unified Custom Cursor Engine
-/// Hides the OS default cursor and renders a custom ultra-smooth crosshair/pointer
+/// Hides the OS default cursor and renders a custom ultra-smooth arrow pointer
 /// across Egui UI, WebGPU Charts, and Ultralight Punched Canvases seamlessly.
 pub struct CursorEngine {
     pub position: egui::Pos2,
@@ -38,7 +38,7 @@ impl CursorEngine {
         self.position = pos;
     }
 
-    /// Renders the custom cursor seamlessly across all layers (Egui, WebGPU, Ultralight)
+    /// Renders the custom arrow pointer cursor seamlessly across all layers (Egui, WebGPU, Ultralight)
     pub fn render_cursor(&self, ctx: &egui::Context) {
         if !self.is_visible {
             return;
@@ -54,25 +54,47 @@ impl CursorEngine {
 
         match self.render_mode {
             CursorRenderMode::GPUAccelerated => {
-                // GPU Fast Path: Smooth 144FPS SDF Crosshair & Dot
-                let color = egui::Color32::from_rgb(0, 255, 180); // Emerald Cyan Trading Cursor
-                
-                // Crosshair lines
-                painter.line_segment([egui::pos2(p.x - 12.0, p.y), egui::pos2(p.x + 12.0, p.y)], (1.5, color));
-                painter.line_segment([egui::pos2(p.x, p.y - 12.0), egui::pos2(p.x, p.y + 12.0)], (1.5, color));
-                
-                // Center glow dot
-                painter.circle_filled(p, 3.0, egui::Color32::WHITE);
-                painter.circle_stroke(p, 5.0, (1.0, color));
+                // GPU Fast Path: Sleek Emerald Cyan Arrow Pointer
+                let arrow_points = vec![
+                    p,                                           // Tip
+                    egui::pos2(p.x, p.y + 18.0),                 // Bottom Left
+                    egui::pos2(p.x + 4.5, p.y + 13.5),           // Inner Angle
+                    egui::pos2(p.x + 8.5, p.y + 19.5),           // Tail Bottom
+                    egui::pos2(p.x + 11.5, p.y + 18.0),          // Tail Right
+                    egui::pos2(p.x + 7.5, p.y + 12.0),           // Inner Angle Right
+                    egui::pos2(p.x + 13.0, p.y + 12.0),          // Far Right Corner
+                ];
+
+                let cyan = egui::Color32::from_rgb(0, 255, 180);
+                let dark_border = egui::Color32::from_rgb(10, 15, 25);
+
+                // Draw filled Arrow Pointer + Sharp Cyan Outline
+                painter.add(egui::Shape::convex_polygon(
+                    arrow_points.clone(),
+                    cyan,
+                    egui::Stroke::new(1.5_f32, dark_border),
+                ));
             }
             CursorRenderMode::CPUSoftware => {
-                // CPU Safe Path: Software rasterized crisp cursor for non-GPU hardware
-                let color = egui::Color32::from_rgb(255, 200, 0); // Gold Yellow Fallback Cursor
-                
-                // Software fallback crosshair
-                painter.line_segment([egui::pos2(p.x - 8.0, p.y), egui::pos2(p.x + 8.0, p.y)], (1.0, color));
-                painter.line_segment([egui::pos2(p.x, p.y - 8.0), egui::pos2(p.x, p.y + 8.0)], (1.0, color));
-                painter.circle_filled(p, 2.0, color);
+                // CPU Safe Path: Software rasterized Gold Arrow Pointer for non-GPU hardware
+                let arrow_points = vec![
+                    p,
+                    egui::pos2(p.x, p.y + 14.0),
+                    egui::pos2(p.x + 3.5, p.y + 10.5),
+                    egui::pos2(p.x + 6.5, p.y + 15.0),
+                    egui::pos2(p.x + 9.0, p.y + 13.5),
+                    egui::pos2(p.x + 6.0, p.y + 9.0),
+                    egui::pos2(p.x + 10.0, p.y + 9.0),
+                ];
+
+                let gold = egui::Color32::from_rgb(255, 200, 0);
+                let dark_border = egui::Color32::from_rgb(10, 15, 25);
+
+                painter.add(egui::Shape::convex_polygon(
+                    arrow_points,
+                    gold,
+                    egui::Stroke::new(1.0_f32, dark_border),
+                ));
             }
         }
     }
