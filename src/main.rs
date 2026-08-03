@@ -55,7 +55,7 @@ impl SmartBrainApp {
             layout_engine: LayoutEngine::new(),
             chart_engine: Arc::new(ChartEngine::new(wgpu_render_state)),
             ultralight_engine,
-            cursor_engine: CursorEngine::new(true), // Realistic Hardware Cursor Engine
+            cursor_engine: CursorEngine::new(true), // Universal Cursor Engine (Normal Cursor default)
             event_router: EventRouter::new(),
             qt_engine: QtDataEngine::new(),
             show_dynamic_popup: false,
@@ -106,19 +106,22 @@ impl eframe::App for SmartBrainApp {
                     }
 
                     ui.separator();
+                    ui.checkbox(&mut self.cursor_engine.enable_coordinate_crosshair, "Enable Coordinate Graph Crosshair");
+
+                    ui.separator();
                     ui.label("Dual WebGPU Support:");
                     ui.label("✔ WebGPU inside Egui (Rust)");
                     ui.label("✔ WebGPU inside Ultralight Punch");
-                    ui.label("✔ Realistic Hardware OS Cursor Active");
+                    ui.label("✔ Universal Normal OS Cursor Active");
                 });
         }
 
         // --- RENDER REGION 2: WEBGPU NATIVE CANVAS (PUNCHED LAYER VIA SCISSOR RECT) ---
-        let mut is_hovering_chart = false;
+        let mut is_over_coordinate_graph = false;
         for (i, wgpu_rect) in layout.wgpu_rects.iter().enumerate() {
             if let Some(pos) = ctx.pointer_latest_pos() {
                 if wgpu_rect.contains(pos) {
-                    is_hovering_chart = true;
+                    is_over_coordinate_graph = true;
                 }
             }
 
@@ -152,10 +155,10 @@ impl eframe::App for SmartBrainApp {
                 });
         }
 
-        // Auto-evaluate cursor state based on hover context (Chart vs UI)
-        self.cursor_engine.evaluate_context(is_hovering_chart, is_mouse_down);
+        // Evaluate cursor state: Defaults to NORMAL OS CURSOR everywhere!
+        self.cursor_engine.evaluate_context(is_over_coordinate_graph, is_mouse_down);
 
-        // --- RENDER REALISTIC HARDWARE CURSOR & CHART OVERLAY ---
+        // --- RENDER UNIVERSAL CURSOR ---
         self.cursor_engine.render(ctx, screen_rect.size());
     }
 }

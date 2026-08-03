@@ -3,33 +3,32 @@ use eframe::egui;
 /// Realistic System Hardware Cursor Modes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RealisticCursorStyle {
-    DefaultArrow,     // Native Hardware OS Arrow (0-Latency Mouse Thread)
-    TradingCrosshair, // High-Precision Chart Crosshair + Axis Guidelines
-    HandGrab,         // Hardware/Software Hand Grab
+    DefaultArrow,     // Normal Hardware OS Arrow Pointer (Clean, 0-Latency)
+    CoordinateCrosshair, // Crosshair guidelines (ONLY for coordinate graphs / charts)
+    HandGrab,         // Hand Grab Icon
     #[allow(dead_code)]
     TextIBeam,        // Text I-Beam
 }
 
-/// Realistic Production-Grade Cursor Engine
-/// Uses OS Hardware Mouse Thread (Zero-Latency) for pointer movement,
-/// and dynamic WGPU/Overlay guidelines only when over Trading Charts or Special UI zones.
+/// Universal Production-Grade Cursor Engine
+/// Defaults to the clean Normal OS Hardware Cursor everywhere.
+/// Crosshair guidelines are ONLY activated when explicitly enabled for coordinate graphs.
 pub struct CursorEngine {
     pub position: egui::Pos2,
     pub active_style: RealisticCursorStyle,
     pub is_mouse_down: bool,
-    #[allow(dead_code)]
-    pub use_hardware_os_cursor: bool,
+    pub enable_coordinate_crosshair: bool, // Set to true ONLY when rendering a coordinate graph
 }
 
 impl CursorEngine {
     pub fn new(has_gpu: bool) -> Self {
-        log::info!("Realistic Hardware Cursor Engine initialized (Hardware Thread: true, GPU: {})", has_gpu);
+        log::info!("Universal Hardware Cursor Engine initialized (GPU: {})", has_gpu);
 
         Self {
             position: egui::pos2(0.0, 0.0),
             active_style: RealisticCursorStyle::DefaultArrow,
             is_mouse_down: false,
-            use_hardware_os_cursor: true,
+            enable_coordinate_crosshair: false, // Default is FALSE (Normal cursor everywhere)
         }
     }
 
@@ -39,27 +38,27 @@ impl CursorEngine {
         self.is_mouse_down = is_down;
     }
 
-    /// Evaluates hover region and selects the realistic cursor state
-    pub fn evaluate_context(&mut self, is_over_chart: bool, is_dragging: bool) {
+    /// Evaluates hover region: Uses Normal Cursor everywhere unless a coordinate graph specifically requests crosshair
+    pub fn evaluate_context(&mut self, is_over_coordinate_graph: bool, is_dragging: bool) {
         if is_dragging {
             self.active_style = RealisticCursorStyle::HandGrab;
-        } else if is_over_chart {
-            self.active_style = RealisticCursorStyle::TradingCrosshair;
+        } else if is_over_coordinate_graph && self.enable_coordinate_crosshair {
+            self.active_style = RealisticCursorStyle::CoordinateCrosshair;
         } else {
+            // NORMAL CURSOR FOR EVERYTHING ELSE (Egui, WebGPU 3D, HTML, General Apps)
             self.active_style = RealisticCursorStyle::DefaultArrow;
         }
     }
 
-    /// Renders the realistic cursor setup:
-    /// - Arrow/Standard UI: Uses Native OS Hardware Mouse Thread (Zero Lag)
-    /// - Trading Chart: Uses WGPU/Painter Overlay Crosshair & Axis Guidelines
+    /// Renders the cursor state:
+    /// - Normal Cursor (Default everywhere): Clean Hardware OS Mouse Pointer
+    /// - Coordinate Graph: Crosshair + Axis Guidelines ONLY if requested
     pub fn render(&self, ctx: &egui::Context, screen_size: egui::Vec2) {
         let p = self.position;
 
         match self.active_style {
             RealisticCursorStyle::DefaultArrow => {
-                // Realistic Production Approach: Delegate Arrow Cursor to OS Hardware Mouse Thread!
-                // Zero latency, zero frame-delay, 1000Hz polling rate.
+                // NORMAL OS CURSOR EVERYWHERE (Clean, 0-Latency, No Background Overlay)
                 if self.is_mouse_down {
                     ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
                 } else {
@@ -76,17 +75,17 @@ impl CursorEngine {
             RealisticCursorStyle::TextIBeam => {
                 ctx.set_cursor_icon(egui::CursorIcon::Text);
             }
-            RealisticCursorStyle::TradingCrosshair => {
-                // Hide OS arrow over Trading Chart and draw 144FPS Precision Axis Guidelines
+            RealisticCursorStyle::CoordinateCrosshair => {
+                // Crosshair ONLY when over a Coordinate Graph / Chart
                 ctx.set_cursor_icon(egui::CursorIcon::Crosshair);
 
-                let layer_id = egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("trading_axis_overlay"));
+                let layer_id = egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("coordinate_axis_overlay"));
                 let painter = ctx.layer_painter(layer_id);
 
                 let cyan = egui::Color32::from_rgb(0, 255, 180);
                 let axis_stroke = egui::Stroke::new(1.0_f32, egui::Color32::from_rgba_unmultiplied(0, 255, 180, 100));
 
-                // Full-screen X & Y Trading Guidelines (TradingView Style)
+                // Full-screen X & Y Guidelines
                 painter.line_segment([egui::pos2(0.0, p.y), egui::pos2(screen_size.x, p.y)], axis_stroke);
                 painter.line_segment([egui::pos2(p.x, 0.0), egui::pos2(p.x, screen_size.y)], axis_stroke);
 
