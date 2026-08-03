@@ -104,10 +104,11 @@ impl eframe::App for SmartBrainApp {
                     ui.label("Dual WebGPU Support:");
                     ui.label("✔ WebGPU inside Egui (Rust)");
                     ui.label("✔ WebGPU inside Ultralight Punch");
+                    ui.label("✔ Scissor GPU Punching Active");
                 });
         }
 
-        // --- RENDER REGION 2: WEBGPU NATIVE CANVAS (PUNCHED LAYER) ---
+        // --- RENDER REGION 2: WEBGPU NATIVE CANVAS (PUNCHED LAYER VIA SCISSOR RECT) ---
         for (i, wgpu_rect) in layout.wgpu_rects.iter().enumerate() {
             egui::Window::new(format!("Native Chart Engine {}", i))
                 .fixed_rect(*wgpu_rect)
@@ -120,6 +121,7 @@ impl eframe::App for SmartBrainApp {
                         rect,
                         engine::chart_engine::ChartCallback {
                             engine: self.chart_engine.clone(),
+                            punch_rects: layout.html_punch_rects.clone(),
                         },
                     );
                     ui.painter().add(cb);
@@ -134,7 +136,7 @@ impl eframe::App for SmartBrainApp {
                 .show(ctx, |ui| {
                     ui.heading("Ultralight HTML DOM");
                     ui.label("Dynamic HTML Layering active!");
-                    ui.label("Background WebGPU chart is stencil punched behind this box.");
+                    ui.label("Background WebGPU chart is stencil/scissor punched behind this box.");
                 });
         }
     }
