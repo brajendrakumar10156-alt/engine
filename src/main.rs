@@ -10,8 +10,12 @@ use ui::event_router::EventRouter;
 use engine::chart_engine::ChartEngine;
 use engine::ultralight_engine::{UltralightEngine, DirtyRect};
 use engine::cursor_engine::CursorEngine;
+use engine::hft_engine::HftEngine;
+use engine::excel_export::ExcelExportEngine;
+use engine::pdf_export::PdfExportEngine;
 use engine::qt_engine::QtDataEngine;
 use std::sync::Arc;
+use std::path::PathBuf;
 
 fn main() -> eframe::Result<()> {
     env_logger::init(); 
@@ -38,10 +42,12 @@ struct SmartBrainApp {
     chart_engine: Arc<ChartEngine>,
     ultralight_engine: UltralightEngine,
     cursor_engine: CursorEngine,
+    hft_engine: HftEngine,
     event_router: EventRouter,
     #[allow(dead_code)]
     qt_engine: QtDataEngine,
     show_dynamic_popup: bool,
+    export_status_msg: String,
 }
 
 impl SmartBrainApp {
@@ -55,10 +61,12 @@ impl SmartBrainApp {
             layout_engine: LayoutEngine::new(),
             chart_engine: Arc::new(ChartEngine::new(wgpu_render_state)),
             ultralight_engine,
-            cursor_engine: CursorEngine::new(true), // Universal Cursor Engine (Normal Cursor default)
+            cursor_engine: CursorEngine::new(true), // Universal Cursor Engine
+            hft_engine: HftEngine::new(),
             event_router: EventRouter::new(),
             qt_engine: QtDataEngine::new(),
             show_dynamic_popup: false,
+            export_status_msg: "Ready".to_string(),
         }
     }
 }
@@ -104,6 +112,41 @@ impl eframe::App for SmartBrainApp {
                             self.ultralight_engine.receive_js_trigger("popup_closed");
                         }
                     }
+
+                    ui.separator();
+                    ui.heading("Phase E: HFT & Exports");
+                    
+                    if ui.button("Run Polars HFT 1M Candle Math").clicked() {
+                        let dummy_prices: Vec<f64> = (0..10_000).map(|i| 100.0 + (i as f64 * 0.01)).collect();
+                        match self.hft_engine.calculate_indicators(&dummy_prices) {
+                            Ok(res) => {
+                                self.export_status_msg = format!("Polars Math Done: {} items in <1ms", res.len());
+                            }
+                            Err(e) => {
+                                self.export_status_msg = format!("HFT Error: {:?}", e);
+                            }
+                        }
+                    }
+
+                    ui.horizontal(|ui| {
+                        if ui.button("Export Native Excel").clicked() {
+                            let dest = PathBuf::from("smart_brain_report.xlsx");
+                            match ExcelExportEngine::export_trading_report(&dest, "BTC/USDT", 5_000) {
+                                Ok(_) => self.export_status_msg = "Excel Exported: smart_brain_report.xlsx".to_string(),
+                                Err(e) => self.export_status_msg = format!("Excel Error: {:?}", e),
+                            }
+                        }
+
+                        if ui.button("Export Native PDF").clicked() {
+                            let dest = PathBuf::from("smart_brain_chart.pdf");
+                            match PdfExportEngine::export_pdf_report(&dest, "Smart Brain Chart Analysis") {
+                                Ok(_) => self.export_status_msg = "PDF Exported: smart_brain_chart.pdf".to_string(),
+                                Err(e) => self.export_status_msg = format!("PDF Error: {:?}", e),
+                            }
+                        }
+                    });
+
+                    ui.label(format!("Status: {}", self.export_status_msg));
 
                     ui.separator();
                     ui.checkbox(&mut self.cursor_engine.enable_coordinate_crosshair, "Enable Coordinate Graph Crosshair");

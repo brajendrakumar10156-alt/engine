@@ -11,3 +11,8 @@ env_logger = "0.11"
 bytemuck = { version = "1.15", features = ["derive"] }
 glam = "0.27"
 tokio = { version = "1.37", features = ["full"] }
+
+# Phase E: HFT Math & Native OS Export Engine Dependencies
+polars = { version = "0.38", features = ["lazy", "dtype-datetime"] }
+rust_xlsxwriter = "0.64"
+printpdf = "0.7"
