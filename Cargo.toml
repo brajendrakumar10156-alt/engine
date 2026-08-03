@@ -12,6 +12,7 @@ usb_api = []
 
 [dependencies]
 eframe = { version = "0.27.2", features = ["wgpu"] } # Egui + winit + wgpu context
+egui_extras = { version = "0.27.2", features = ["all_loaders", "svg"] }
 wgpu = "0.19"
 log = "0.4"
 env_logger = "0.11"

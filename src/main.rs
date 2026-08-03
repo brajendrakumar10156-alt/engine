@@ -15,7 +15,7 @@ use engine::excel_export::ExcelExportEngine;
 use engine::pdf_export::PdfExportEngine;
 use engine::qt_engine::QtDataEngine;
 use engine::permission_engine::{PermissionEngine, PermissionType};
-use engine::icon_engine::IconEngine;
+use engine::icon_engine::{IconEngine, IconType};
 use engine::branding::BrandingEngine;
 use std::sync::Arc;
 use std::path::PathBuf;
@@ -34,6 +34,8 @@ fn main() -> eframe::Result<()> {
         "Smart Brain Engine",
         options,
         Box::new(|cc| {
+            // Initialize egui_extras SVG & image loaders for Egui Native RGBA Icon support
+            egui_extras::install_image_loaders(&cc.egui_ctx);
             let wgpu_render_state = cc.wgpu_render_state.clone().expect("WGPU not enabled");
             Box::new(SmartBrainApp::new(&wgpu_render_state))
         }),
@@ -102,10 +104,13 @@ impl eframe::App for SmartBrainApp {
                 .fixed_rect(*egui_rect)
                 .title_bar(false)
                 .show(ctx, |ui| {
-                    ui.heading("Egui + Rust Native Panel");
-                    ui.label("100% Native Rust Egui UI with RGBA Icons.");
+                    ui.horizontal(|ui| {
+                        IconEngine::render_icon(ui, IconType::Settings, 20.0, egui::Color32::from_rgb(0, 200, 255));
+                        ui.heading("Egui + Rust Native Panel");
+                    });
+                    ui.label("100% Native Rust Egui UI with Full 32-bit RGBA Icon Library.");
 
-                    if IconEngine::render_icon_button(ui, "🔔", "Toggle Dynamic HTML Popup", egui::Color32::from_rgb(255, 200, 0)) {
+                    if IconEngine::render_icon_button(ui, IconType::NotificationBell, "Toggle Dynamic HTML Popup", egui::Color32::from_rgb(255, 200, 0)) {
                         self.show_dynamic_popup = !self.show_dynamic_popup;
                         if self.show_dynamic_popup {
                             self.ultralight_engine.register_dirty_rect(DirtyRect::new(400.0, 200.0, 300.0, 200.0));
@@ -117,7 +122,10 @@ impl eframe::App for SmartBrainApp {
                     }
 
                     ui.separator();
-                    ui.heading("Graphics Pipeline Mode:");
+                    ui.horizontal(|ui| {
+                        IconEngine::render_icon(ui, IconType::ThemePalette, 18.0, egui::Color32::from_rgb(255, 100, 200));
+                        ui.heading("Graphics Pipeline Mode:");
+                    });
                     ui.horizontal(|ui| {
                         if ui.selectable_label(!self.use_webgl_mode, "WebGPU (Next-Gen)").clicked() {
                             self.use_webgl_mode = false;
@@ -130,7 +138,7 @@ impl eframe::App for SmartBrainApp {
                     ui.separator();
                     ui.heading("Phase E: HFT & Exports");
                     
-                    if IconEngine::render_icon_button(ui, "⚡", "Run Polars HFT 1M Candle Math", egui::Color32::from_rgb(0, 255, 180)) {
+                    if IconEngine::render_icon_button(ui, IconType::LightningHFT, "Run Polars HFT 1M Candle Math", egui::Color32::from_rgb(0, 255, 180)) {
                         let dummy_prices: Vec<f64> = (0..10_000).map(|i| 100.0 + (i as f64 * 0.01)).collect();
                         match self.hft_engine.calculate_indicators(&dummy_prices) {
                             Ok(res) => {
@@ -143,7 +151,7 @@ impl eframe::App for SmartBrainApp {
                     }
 
                     ui.horizontal(|ui| {
-                        if IconEngine::render_icon_button(ui, "📊", "Export Native Excel", egui::Color32::from_rgb(40, 200, 100)) {
+                        if IconEngine::render_icon_button(ui, IconType::ExportExcel, "Export Native Excel", egui::Color32::from_rgb(40, 200, 100)) {
                             let dest = PathBuf::from("smart_brain_report.xlsx");
                             match ExcelExportEngine::export_trading_report(&dest, "BTC/USDT", 5_000) {
                                 Ok(_) => self.export_status_msg = "Excel Exported: smart_brain_report.xlsx".to_string(),
@@ -151,7 +159,7 @@ impl eframe::App for SmartBrainApp {
                             }
                         }
 
-                        if IconEngine::render_icon_button(ui, "📄", "Export Native PDF", egui::Color32::from_rgb(255, 80, 80)) {
+                        if IconEngine::render_icon_button(ui, IconType::ExportPdf, "Export Native PDF", egui::Color32::from_rgb(255, 80, 80)) {
                             let dest = PathBuf::from("smart_brain_chart.pdf");
                             match PdfExportEngine::export_pdf_report(&dest, "Smart Brain Chart Analysis") {
                                 Ok(_) => self.export_status_msg = "PDF Exported: smart_brain_chart.pdf".to_string(),
@@ -163,15 +171,18 @@ impl eframe::App for SmartBrainApp {
                     ui.label(format!("Status: {}", self.export_status_msg));
 
                     ui.separator();
-                    ui.heading("Phase X: Hardware API Permission Guard");
                     ui.horizontal(|ui| {
-                        if ui.button("Request Bluetooth").clicked() {
+                        IconEngine::render_icon(ui, IconType::SecurityShield, 18.0, egui::Color32::from_rgb(255, 180, 0));
+                        ui.heading("Phase X: Hardware API Permission Guard");
+                    });
+                    ui.horizontal(|ui| {
+                        if IconEngine::render_icon_button(ui, IconType::Bluetooth, "Bluetooth", egui::Color32::from_rgb(0, 150, 255)) {
                             self.permission_engine.request_permission(PermissionType::Bluetooth);
                         }
-                        if ui.button("Request WebRTC").clicked() {
+                        if IconEngine::render_icon_button(ui, IconType::WebRTC, "WebRTC", egui::Color32::from_rgb(200, 100, 255)) {
                             self.permission_engine.request_permission(PermissionType::WebRTC);
                         }
-                        if ui.button("Request USB").clicked() {
+                        if IconEngine::render_icon_button(ui, IconType::USB, "USB", egui::Color32::from_rgb(255, 150, 0)) {
                             self.permission_engine.request_permission(PermissionType::USBDevice);
                         }
                     });
@@ -179,7 +190,6 @@ impl eframe::App for SmartBrainApp {
                     ui.separator();
                     ui.checkbox(&mut self.cursor_engine.enable_coordinate_crosshair, "Enable Coordinate Graph Crosshair");
 
-                    // Render mandatory Core Engine Credits & Custom Brand Footer
                     self.branding_engine.render_credit_footer(ui);
                 });
         }
@@ -234,7 +244,7 @@ impl eframe::App for SmartBrainApp {
                 .show(ctx, |ui| {
                     ui.heading("Hardware Access Requested!");
                     ui.separator();
-                    ui.label(format!("Application is requesting permission to access:"));
+                    ui.label("Application is requesting permission to access:");
                     ui.label(egui::RichText::new(pending_perm.display_name()).strong().color(egui::Color32::LIGHT_BLUE));
                     ui.label("Do you grant permission to this hardware subsystem?");
                     ui.add_space(10.0);
