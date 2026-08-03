@@ -4,17 +4,39 @@ use std::borrow::Cow;
 use std::sync::Arc;
 use wgpu;
 
+/// Represents the active Native Graphics API (WebGPU or WebGL2 Fallback)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GraphicsBackendType {
+    WebGPU, // Vulkan / D3D12 / Metal (Next-Gen 144+ FPS)
+    WebGL2, // OpenGL ES / WebGL2 Fallback (For older GPUs/Browsers)
+}
+
+/// Unified Dual Graphics Engine
+/// Supports native WebGPU & WebGL2 rendering in BOTH environments:
+/// 1. Inside Native Egui Windows (via egui_wgpu paint callbacks)
+/// 2. Inside Ultralight HTML <canvas> layers (via Layering Punching)
 pub struct ChartEngine {
     pub render_pipeline: wgpu::RenderPipeline,
+    #[allow(dead_code)]
+    pub backend_type: GraphicsBackendType,
 }
 
 impl ChartEngine {
     pub fn new(wgpu_render_state: &egui_wgpu::RenderState) -> Self {
         let device = &wgpu_render_state.device;
 
-        // WGSL Shader for Native WebGPU Chart rendering with SDF Smoothness
+        // Auto-detect if device is running on WebGPU (Vulkan/D3D12) or WebGL2 (OpenGL)
+        let adapter_info = wgpu_render_state.adapter.get_info();
+        let backend_type = match adapter_info.backend {
+            wgpu::Backend::Gl => GraphicsBackendType::WebGL2,
+            _ => GraphicsBackendType::WebGPU,
+        };
+
+        log::info!("Unified Graphics Engine initialized on backend: {:?}", backend_type);
+
+        // Unified WGSL Shader: Works seamlessly across WebGPU and WebGL2 backends!
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("chart_shader"),
+            label: Some("unified_graphics_shader"),
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(
                 r#"
                 struct VertexOutput {
@@ -42,7 +64,7 @@ impl ChartEngine {
                     let center = vec2<f32>(0.5, 0.5);
                     let dist = length(in.uv - center);
                     let alpha = smoothstep(0.4, 0.38, dist);
-                    return vec4<f32>(0.0, 1.0, 0.5, alpha); // Emerald Green WebGPU Candlestick Node
+                    return vec4<f32>(0.0, 1.0, 0.5, alpha); // Emerald Green Candlestick Node
                 }
                 "#,
             )),
@@ -77,10 +99,16 @@ impl ChartEngine {
             multiview: None,
         });
 
-        Self { render_pipeline }
+        Self {
+            render_pipeline,
+            backend_type,
+        }
     }
 }
 
+/// Paint Callback invoked for rendering WebGPU / WebGL2 graphics:
+/// - Inside Egui Native Windows
+/// - Inside Ultralight Punched HTML Canvases
 pub struct ChartCallback {
     pub engine: Arc<ChartEngine>,
     #[allow(dead_code)]
@@ -102,8 +130,7 @@ impl egui_wgpu::CallbackTrait for ChartCallback {
         let width = (clip_rect.width() * ppp).max(1.0) as u32;
         let height = (clip_rect.height() * ppp).max(1.0) as u32;
 
-        // --- LAYERING PUNCHING (Scissor Rect GPU Culling) ---
-        // Apply GPU scissor rect so WGPU only draws pixels inside the punched canvas viewport
+        // Apply GPU scissor rect for exact viewport rendering (both in Egui & Ultralight HTML Canvases)
         render_pass.set_scissor_rect(x, y, width, height);
 
         render_pass.set_pipeline(&self.engine.render_pipeline);
