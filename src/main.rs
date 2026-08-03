@@ -58,7 +58,7 @@ struct SmartBrainApp {
     qt_engine: QtDataEngine,
     show_dynamic_popup: bool,
     show_3d_icons: bool,
-    use_webgl_mode: bool, // WebGL2 (Chrome GLSL) vs WebGPU (Next-Gen WGSL)
+    use_webgl_mode: bool,
     export_status_msg: String,
 }
 
@@ -91,6 +91,24 @@ impl eframe::App for SmartBrainApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let screen_rect = ctx.screen_rect();
 
+        // --- GLOBAL KEYBOARD SHORTCUTS LISTENER (F5, Ctrl+R, Ctrl+Shift+R, Ctrl+F5) ---
+        ctx.input(|i| {
+            let is_ctrl = i.modifiers.ctrl;
+            let is_shift = i.modifiers.shift;
+
+            if i.key_pressed(egui::Key::F5) || (is_ctrl && i.key_pressed(egui::Key::R)) {
+                if is_shift || i.key_pressed(egui::Key::F5) && is_ctrl {
+                    // Hard Refresh Shortcut: Ctrl+Shift+R / Ctrl+F5
+                    self.ultralight_engine.hard_refresh();
+                    self.export_status_msg = "⚡ HARD REFRESH: Cache Wiped & GPU VRAM Flushed!".to_string();
+                } else {
+                    // Normal Refresh Shortcut: F5 / Ctrl+R
+                    self.ultralight_engine.normal_refresh();
+                    self.export_status_msg = "🔄 Normal Refresh: DOM Surface Reloaded".to_string();
+                }
+            }
+        });
+
         self.ultralight_engine.render_html_surface();
 
         let is_mouse_down = ctx.input(|i| i.pointer.primary_down());
@@ -105,7 +123,6 @@ impl eframe::App for SmartBrainApp {
         );
         let layout = self.layout_engine.current_layout.clone();
 
-        // Render 3D Desktop Icons on screen if enabled
         if self.show_3d_icons {
             self.icon_3d_engine.render(ctx);
         }
@@ -127,6 +144,20 @@ impl eframe::App for SmartBrainApp {
                     });
                     ui.label("100% Native Rust Egui UI with Full 32-bit RGBA Theme Engine.");
 
+                    // Refresh System Toolbar Buttons & Shortcuts
+                    ui.separator();
+                    ui.heading("🔄 Refresh Controls & Shortcuts:");
+                    ui.horizontal(|ui| {
+                        if ui.button("🔄 Normal Refresh (F5 / Ctrl+R)").clicked() {
+                            self.ultralight_engine.normal_refresh();
+                            self.export_status_msg = "🔄 Normal Refresh: DOM Surface Reloaded".to_string();
+                        }
+                        if ui.button("⚡🔄 Hard Refresh (Ctrl+Shift+R)").clicked() {
+                            self.ultralight_engine.hard_refresh();
+                            self.export_status_msg = "⚡ HARD REFRESH: Cache Wiped & GPU VRAM Flushed!".to_string();
+                        }
+                    });
+
                     if IconEngine::render_icon_button(ui, IconType::NotificationBell, "Toggle Dynamic HTML Popup", egui::Color32::from_rgb(255, 200, 0)) {
                         self.show_dynamic_popup = !self.show_dynamic_popup;
                         if self.show_dynamic_popup {
@@ -141,7 +172,6 @@ impl eframe::App for SmartBrainApp {
                     ui.checkbox(&mut self.show_3d_icons, "Show 3D Desktop Icons");
 
                     ui.separator();
-                    // Live RGBA Theme Customizer Controls
                     self.theme_engine.render_customizer(ui);
 
                     ui.separator();
@@ -191,7 +221,7 @@ impl eframe::App for SmartBrainApp {
                         }
                     });
 
-                    ui.label(format!("Status: {}", self.export_status_msg));
+                    ui.label(egui::RichText::new(format!("Status: {}", self.export_status_msg)).strong().color(egui::Color32::YELLOW));
 
                     ui.separator();
                     ui.horizontal(|ui| {

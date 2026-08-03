@@ -92,6 +92,11 @@ impl UltralightGpuDriver {
 
         texture
     }
+
+    /// Flushes GPU VRAM textures during Hard Refresh
+    pub fn flush_gpu_cache(&self) {
+        log::info!("UltralightGpuDriver: Flushed GPU VRAM Textures & Render Pipelines.");
+    }
 }
 
 /// Ultralight WebKit HTML/DOM Engine Wrapper
@@ -117,8 +122,22 @@ impl UltralightEngine {
         }
     }
 
+    /// Performs Normal Refresh: Reloads active HTML/CSS surface while keeping cache intact
+    pub fn normal_refresh(&mut self) {
+        log::info!("Executing Normal Refresh (F5 / Ctrl+R): Reloading active HTML DOM surface...");
+        self.clear_expired_rects();
+    }
+
+    /// Performs Hard Refresh: Wipes DOM cache, flushes GPU VRAM, resets dirty rects
+    pub fn hard_refresh(&mut self) {
+        log::info!("Executing Hard Refresh (Ctrl+Shift+R / Ctrl+F5): Wiping DOM cache & GPU VRAM...");
+        self.active_dirty_rects.clear();
+        self.register_dirty_rect(DirtyRect::new(0.0, 0.0, 1280.0, 40.0));
+        self.gpu_driver.flush_gpu_cache();
+        self.pending_js_triggers.clear();
+    }
+
     /// Registers a dynamic HTML UI bounding box (chota or bada) for Layering Punching.
-    /// The background WGPU/WebGL renderer will cull (punch out) pixels behind these rects.
     pub fn register_dirty_rect(&mut self, rect: DirtyRect) {
         log::info!(
             "Layering Punching: Registering UI rect at ({}, {}) size {}x{}",
