@@ -1,0 +1,13 @@
+[package]
+name = "smart_brain_engine"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+eframe = { version = "0.27.2", features = ["wgpu"] } # Egui + winit + wgpu context
+wgpu = "0.19"
+log = "0.4"
+env_logger = "0.11"
+bytemuck = { version = "1.15", features = ["derive"] }
+glam = "0.27"
+tokio = { version = "1.37", features = ["full"] }
