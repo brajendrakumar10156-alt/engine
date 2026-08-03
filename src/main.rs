@@ -55,7 +55,7 @@ impl SmartBrainApp {
             layout_engine: LayoutEngine::new(),
             chart_engine: Arc::new(ChartEngine::new(wgpu_render_state)),
             ultralight_engine,
-            cursor_engine: CursorEngine::new(true), // GPU Accelerated Cursor Engine
+            cursor_engine: CursorEngine::new(true), // Realistic Hardware Cursor Engine
             event_router: EventRouter::new(),
             qt_engine: QtDataEngine::new(),
             show_dynamic_popup: false,
@@ -70,9 +70,10 @@ impl eframe::App for SmartBrainApp {
         // Render Ultralight surface & clear expired dirty rects
         self.ultralight_engine.render_html_surface();
 
-        // Route mouse events & update custom cursor position
+        // Track pointer position and mouse press state
+        let is_mouse_down = ctx.input(|i| i.pointer.primary_down());
         if let Some(pointer_pos) = ctx.pointer_latest_pos() {
-            self.cursor_engine.update_position(pointer_pos);
+            self.cursor_engine.update_state(pointer_pos, is_mouse_down);
             self.event_router.route_mouse_event(pointer_pos, &self.layout_engine.current_layout.html_punch_rects);
         }
         
@@ -108,12 +109,19 @@ impl eframe::App for SmartBrainApp {
                     ui.label("Dual WebGPU Support:");
                     ui.label("✔ WebGPU inside Egui (Rust)");
                     ui.label("✔ WebGPU inside Ultralight Punch");
-                    ui.label("✔ Unified Custom GPU/CPU Cursor Active");
+                    ui.label("✔ Realistic Hardware OS Cursor Active");
                 });
         }
 
         // --- RENDER REGION 2: WEBGPU NATIVE CANVAS (PUNCHED LAYER VIA SCISSOR RECT) ---
+        let mut is_hovering_chart = false;
         for (i, wgpu_rect) in layout.wgpu_rects.iter().enumerate() {
+            if let Some(pos) = ctx.pointer_latest_pos() {
+                if wgpu_rect.contains(pos) {
+                    is_hovering_chart = true;
+                }
+            }
+
             egui::Window::new(format!("Native Chart Engine {}", i))
                 .fixed_rect(*wgpu_rect)
                 .title_bar(false)
@@ -144,7 +152,10 @@ impl eframe::App for SmartBrainApp {
                 });
         }
 
-        // --- RENDER UNIFIED CUSTOM GPU/CPU CURSOR ACROSS ALL LAYERS ---
-        self.cursor_engine.render_cursor(ctx);
+        // Auto-evaluate cursor state based on hover context (Chart vs UI)
+        self.cursor_engine.evaluate_context(is_hovering_chart, is_mouse_down);
+
+        // --- RENDER REALISTIC HARDWARE CURSOR & CHART OVERLAY ---
+        self.cursor_engine.render(ctx, screen_rect.size());
     }
 }

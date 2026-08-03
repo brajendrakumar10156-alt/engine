@@ -1,100 +1,98 @@
 use eframe::egui;
 
-/// Represents the active rendering mode for the Unified Custom Cursor
+/// Realistic System Hardware Cursor Modes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CursorRenderMode {
-    GPUAccelerated, // 144+ FPS WGPU/WebGL Arrow Pointer Cursor
-    CPUSoftware,    // Softbuffer / tiny-skia CPU Fallback Arrow Cursor (No GPU)
+pub enum RealisticCursorStyle {
+    DefaultArrow,     // Native Hardware OS Arrow (0-Latency Mouse Thread)
+    TradingCrosshair, // High-Precision Chart Crosshair + Axis Guidelines
+    HandGrab,         // Hardware/Software Hand Grab
+    #[allow(dead_code)]
+    TextIBeam,        // Text I-Beam
 }
 
-/// Unified Custom Cursor Engine
-/// Hides the OS default cursor and renders a custom ultra-smooth arrow pointer
-/// across Egui UI, WebGPU Charts, and Ultralight Punched Canvases seamlessly.
+/// Realistic Production-Grade Cursor Engine
+/// Uses OS Hardware Mouse Thread (Zero-Latency) for pointer movement,
+/// and dynamic WGPU/Overlay guidelines only when over Trading Charts or Special UI zones.
 pub struct CursorEngine {
     pub position: egui::Pos2,
-    pub is_visible: bool,
-    pub render_mode: CursorRenderMode,
+    pub active_style: RealisticCursorStyle,
+    pub is_mouse_down: bool,
+    #[allow(dead_code)]
+    pub use_hardware_os_cursor: bool,
 }
 
 impl CursorEngine {
     pub fn new(has_gpu: bool) -> Self {
-        let render_mode = if has_gpu {
-            CursorRenderMode::GPUAccelerated
-        } else {
-            CursorRenderMode::CPUSoftware
-        };
-
-        log::info!("Unified Custom Cursor Engine initialized (Mode: {:?})", render_mode);
+        log::info!("Realistic Hardware Cursor Engine initialized (Hardware Thread: true, GPU: {})", has_gpu);
 
         Self {
             position: egui::pos2(0.0, 0.0),
-            is_visible: true,
-            render_mode,
+            active_style: RealisticCursorStyle::DefaultArrow,
+            is_mouse_down: false,
+            use_hardware_os_cursor: true,
         }
     }
 
-    /// Updates cursor position from raw OS / Winit mouse events
-    pub fn update_position(&mut self, pos: egui::Pos2) {
+    /// Updates cursor position and mouse press state from OS events
+    pub fn update_state(&mut self, pos: egui::Pos2, is_down: bool) {
         self.position = pos;
+        self.is_mouse_down = is_down;
     }
 
-    /// Renders the custom arrow pointer cursor seamlessly across all layers (Egui, WebGPU, Ultralight)
-    pub fn render_cursor(&self, ctx: &egui::Context) {
-        if !self.is_visible {
-            return;
+    /// Evaluates hover region and selects the realistic cursor state
+    pub fn evaluate_context(&mut self, is_over_chart: bool, is_dragging: bool) {
+        if is_dragging {
+            self.active_style = RealisticCursorStyle::HandGrab;
+        } else if is_over_chart {
+            self.active_style = RealisticCursorStyle::TradingCrosshair;
+        } else {
+            self.active_style = RealisticCursorStyle::DefaultArrow;
         }
+    }
 
-        // Hide default OS cursor
-        ctx.set_cursor_icon(egui::CursorIcon::None);
-
-        let layer_id = egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("custom_gpu_cursor"));
-        let painter = ctx.layer_painter(layer_id);
-
+    /// Renders the realistic cursor setup:
+    /// - Arrow/Standard UI: Uses Native OS Hardware Mouse Thread (Zero Lag)
+    /// - Trading Chart: Uses WGPU/Painter Overlay Crosshair & Axis Guidelines
+    pub fn render(&self, ctx: &egui::Context, screen_size: egui::Vec2) {
         let p = self.position;
 
-        match self.render_mode {
-            CursorRenderMode::GPUAccelerated => {
-                // GPU Fast Path: Sleek Emerald Cyan Arrow Pointer
-                let arrow_points = vec![
-                    p,                                           // Tip
-                    egui::pos2(p.x, p.y + 18.0),                 // Bottom Left
-                    egui::pos2(p.x + 4.5, p.y + 13.5),           // Inner Angle
-                    egui::pos2(p.x + 8.5, p.y + 19.5),           // Tail Bottom
-                    egui::pos2(p.x + 11.5, p.y + 18.0),          // Tail Right
-                    egui::pos2(p.x + 7.5, p.y + 12.0),           // Inner Angle Right
-                    egui::pos2(p.x + 13.0, p.y + 12.0),          // Far Right Corner
-                ];
+        match self.active_style {
+            RealisticCursorStyle::DefaultArrow => {
+                // Realistic Production Approach: Delegate Arrow Cursor to OS Hardware Mouse Thread!
+                // Zero latency, zero frame-delay, 1000Hz polling rate.
+                if self.is_mouse_down {
+                    ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
+                } else {
+                    ctx.set_cursor_icon(egui::CursorIcon::Default);
+                }
+            }
+            RealisticCursorStyle::HandGrab => {
+                if self.is_mouse_down {
+                    ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
+                } else {
+                    ctx.set_cursor_icon(egui::CursorIcon::Grab);
+                }
+            }
+            RealisticCursorStyle::TextIBeam => {
+                ctx.set_cursor_icon(egui::CursorIcon::Text);
+            }
+            RealisticCursorStyle::TradingCrosshair => {
+                // Hide OS arrow over Trading Chart and draw 144FPS Precision Axis Guidelines
+                ctx.set_cursor_icon(egui::CursorIcon::Crosshair);
+
+                let layer_id = egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("trading_axis_overlay"));
+                let painter = ctx.layer_painter(layer_id);
 
                 let cyan = egui::Color32::from_rgb(0, 255, 180);
-                let dark_border = egui::Color32::from_rgb(10, 15, 25);
+                let axis_stroke = egui::Stroke::new(1.0_f32, egui::Color32::from_rgba_unmultiplied(0, 255, 180, 100));
 
-                // Draw filled Arrow Pointer + Sharp Cyan Outline
-                painter.add(egui::Shape::convex_polygon(
-                    arrow_points.clone(),
-                    cyan,
-                    egui::Stroke::new(1.5_f32, dark_border),
-                ));
-            }
-            CursorRenderMode::CPUSoftware => {
-                // CPU Safe Path: Software rasterized Gold Arrow Pointer for non-GPU hardware
-                let arrow_points = vec![
-                    p,
-                    egui::pos2(p.x, p.y + 14.0),
-                    egui::pos2(p.x + 3.5, p.y + 10.5),
-                    egui::pos2(p.x + 6.5, p.y + 15.0),
-                    egui::pos2(p.x + 9.0, p.y + 13.5),
-                    egui::pos2(p.x + 6.0, p.y + 9.0),
-                    egui::pos2(p.x + 10.0, p.y + 9.0),
-                ];
+                // Full-screen X & Y Trading Guidelines (TradingView Style)
+                painter.line_segment([egui::pos2(0.0, p.y), egui::pos2(screen_size.x, p.y)], axis_stroke);
+                painter.line_segment([egui::pos2(p.x, 0.0), egui::pos2(p.x, screen_size.y)], axis_stroke);
 
-                let gold = egui::Color32::from_rgb(255, 200, 0);
-                let dark_border = egui::Color32::from_rgb(10, 15, 25);
-
-                painter.add(egui::Shape::convex_polygon(
-                    arrow_points,
-                    gold,
-                    egui::Stroke::new(1.0_f32, dark_border),
-                ));
+                // Center node dot
+                painter.circle_filled(p, 2.5_f32, egui::Color32::WHITE);
+                painter.circle_stroke(p, 4.5_f32, (1.0_f32, cyan));
             }
         }
     }
